@@ -38,7 +38,6 @@ For the current proof of concept, the team is focusing on:
 ## Strategies
 
 ### Strategy A: Mean Reversion (RSI + Bollinger Bands)
-**Owner:** Weng Yan
 
 **Logic**
 - Buy when price touches the lower Bollinger Band and RSI is below 30
@@ -60,7 +59,6 @@ For the current proof of concept, the team is focusing on:
 - Shows the value of adding filters instead of using signals blindly
 
 ### Strategy C: Volatility Breakout (MACD + Bollinger Band Width)
-**Owner:** Shannon
 
 **Logic**
 - Buy when Bollinger Bands are in a squeeze state
