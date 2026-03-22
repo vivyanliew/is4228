@@ -181,6 +181,7 @@ When you are done working, you can deactivate the virtual environment by running
 
 ```bash
 deactivate
+```
 
 ## Current Backend Files
 
