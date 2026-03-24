@@ -37,14 +37,17 @@ payload = {
     "ticker": ticker,
     "start_date": start_date,
     "end_date": end_date,
-    "initial_capital": initial_capital,
-    "macd_fast": int(macd_fast),
-    "macd_slow": int(macd_slow),
-    "macd_signal": int(macd_signal),
-    "bb_window": int(bb_window),
-    "bb_std": float(bb_std),
-    "squeeze_quantile_window": int(squeeze_quantile_window),
-    "squeeze_threshold_quantile": float(squeeze_threshold_quantile),
+    "initial_capital": float(initial_capital),
+    "strategy_name": "macd",
+    "strategy_params": {
+        "macd_fast": int(macd_fast),
+        "macd_slow": int(macd_slow),
+        "macd_signal": int(macd_signal),
+        "bb_window": int(bb_window),
+        "bb_std": float(bb_std),
+        "squeeze_quantile_window": int(squeeze_quantile_window),
+        "squeeze_threshold_quantile": float(squeeze_threshold_quantile),
+    },
 }
 
 st.subheader("Request Body")
@@ -52,7 +55,7 @@ st.json(payload)
 
 if st.button("Run Backtest"):
     response = requests.post(
-        "http://127.0.0.1:8000/backtest/macd-breakout",
+        "http://127.0.0.1:8000/backtest/run",
         json=payload
     )
 

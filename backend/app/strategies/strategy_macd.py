@@ -32,7 +32,7 @@ def add_indicators(
     # Bollinger Band width
     out["bb_width"] = (out["bb_upper"] - out["bb_lower"]) / out["bb_mid"]
 
-    # Rolling threshold for squeeze detection
+    # Rolling squeeze threshold
     out["bb_width_threshold"] = out["bb_width"].rolling(
         window=squeeze_quantile_window
     ).quantile(squeeze_threshold_quantile)
@@ -45,13 +45,11 @@ def add_indicators(
 def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
-    # MACD histogram crosses
+    # MACD histogram crossovers
     out["macd_cross_up"] = (out["macd_hist"] > 0) & (out["macd_hist"].shift(1) <= 0)
     out["macd_cross_down"] = (out["macd_hist"] < 0) & (out["macd_hist"].shift(1) >= 0)
 
-    # Strategy logic:
-    # Buy when band squeeze is present and MACD histogram turns positive
-    # Sell when MACD histogram turns negative
+    # Buy / sell logic
     out["buy_signal"] = out["is_squeeze"] & out["macd_cross_up"]
     out["sell_signal"] = out["macd_cross_down"]
 
@@ -69,22 +67,22 @@ def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     out["position"] = position
 
-    # Markers for plotting
+    # Plot markers
     prev_position = out["position"].shift(1).fillna(0)
 
     out["buy_marker"] = np.where(
         (out["position"] == 1) & (prev_position == 0),
         out["Close"],
-        np.nan
+        np.nan,
     )
 
     out["sell_marker"] = np.where(
         (out["position"] == 0) & (prev_position == 1),
         out["Close"],
-        np.nan
+        np.nan,
     )
 
-    # Drop only rows where core indicators are not available yet
+    # Drop rows before indicators are ready
     required_cols = [
         "macd_line",
         "macd_signal",
@@ -93,10 +91,14 @@ def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
         "bb_upper",
         "bb_lower",
         "bb_width",
-        "bb_width_threshold"
+        "bb_width_threshold",
     ]
     out = out.dropna(subset=required_cols).copy()
 
     return out
 
+
+def run_strategy(df: pd.DataFrame, params: dict) -> pd.DataFrame:
+    out = add_indicators(df, **params)
+    out = generate_signals(out)
     return out
