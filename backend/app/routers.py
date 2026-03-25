@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.models import BacktestRequest, BacktestResponse
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
+from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
 
 router = APIRouter()
 
@@ -14,11 +15,11 @@ def run_strategy_by_name(strategy_name: str, price_df, strategy_params: dict):
     if strategy_name == "macd":
         return run_macd_strategy(price_df, strategy_params)
 
+    if strategy_name == "mean_reversion":
+        return run_mean_reversion_strategy(price_df, strategy_params)
+
     raise ValueError(f"Unsupported strategy: {strategy_name}")
 
-
-import yfinance as yf
-import pandas as pd
 
 
 def fetch_price_data(ticker: str, start_date: str, end_date: str):
@@ -39,12 +40,6 @@ def fetch_price_data(ticker: str, start_date: str, end_date: str):
 
     return price_df
 
-
-def run_strategy_by_name(strategy_name: str, price_df, strategy_params: dict):
-    if strategy_name == "macd":
-        return run_macd_strategy(price_df, strategy_params)
-
-    raise ValueError(f"Unsupported strategy: {strategy_name}")
 
 
 def add_backtest_columns(df: pd.DataFrame, initial_capital: float) -> pd.DataFrame:
