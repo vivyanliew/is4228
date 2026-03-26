@@ -45,3 +45,23 @@ class BacktestResponse(pydantic.BaseModel):
     metrics: Dict[str, Any]
     trades: List[TradeRecord]
     signal_rows: List[Dict[str, Any]]
+
+#for portfolio
+class PortfolioBacktestRequest(pydantic.BaseModel):
+    tickers: List[str] = pydantic.Field(..., example=["AAPL", "MSFT", "NVDA"])
+    start_date: str = pydantic.Field(..., example="2015-01-01")
+    end_date: str = pydantic.Field(..., example="2025-01-01")
+    initial_capital: float = pydantic.Field(10000.0, example=10000.0)
+
+    strategy_name: Literal["macd", "mean_reversion"] = pydantic.Field(
+        ..., example="mean_reversion"
+    )
+    strategy_params: Union[MacdStrategyParams, MeanReversionStrategyParams]
+
+
+class PortfolioBacktestResponse(pydantic.BaseModel):
+    tickers: List[str]
+    strategy_name: str
+    portfolio_metrics: Dict[str, Any]
+    per_ticker_metrics: Dict[str, Dict[str, Any]]
+    portfolio_signal_rows: List[Dict[str, Any]]
