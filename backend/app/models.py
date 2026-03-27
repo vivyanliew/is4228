@@ -21,14 +21,26 @@ class MeanReversionStrategyParams(pydantic.BaseModel):
     rsi_exit: float = pydantic.Field(70, example=70)
 
 
+class TrendFollowerStrategyParams(pydantic.BaseModel):
+    ema_fast: int = pydantic.Field(20, example=20)
+    ema_slow: int = pydantic.Field(50, example=50)
+    adx_window: int = pydantic.Field(14, example=14)
+    adx_threshold: float = pydantic.Field(25.0, example=25.0)
+
 class BacktestRequest(pydantic.BaseModel):
     ticker: str = pydantic.Field(..., example="AAPL")
     start_date: str = pydantic.Field(..., example="2015-01-01")
     end_date: str = pydantic.Field(..., example="2025-01-01")
     initial_capital: float = pydantic.Field(10000.0, example=10000.0)
 
-    strategy_name: Literal["macd", "mean_reversion"] = pydantic.Field(..., example="mean_reversion")
-    strategy_params: Union[MacdStrategyParams, MeanReversionStrategyParams]
+    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
+        ..., example="trend_follower"
+    )
+    strategy_params: Union[
+        MacdStrategyParams,
+        MeanReversionStrategyParams,
+        TrendFollowerStrategyParams,
+    ]
 
 
 class TradeRecord(pydantic.BaseModel):

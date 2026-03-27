@@ -5,6 +5,7 @@ import yfinance as yf
 from fastapi import APIRouter, HTTPException
 
 from app.models import BacktestRequest, BacktestResponse
+from app.strategies.strategy_ema import run_strategy as run_ema_strategy
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
 
@@ -17,6 +18,9 @@ def run_strategy_by_name(strategy_name: str, price_df, strategy_params: dict):
 
     if strategy_name == "mean_reversion":
         return run_mean_reversion_strategy(price_df, strategy_params)
+
+    if strategy_name == "trend_follower":
+        return run_ema_strategy(price_df, strategy_params)
 
     raise ValueError(f"Unsupported strategy: {strategy_name}")
 
