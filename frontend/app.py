@@ -1,18 +1,43 @@
 import streamlit as st
+import requests
+import pandas as pd
+import plotly.graph_objects as go
 # from data import load_data
 # from indicators import compute_indicators
 # from strategy import generate_signals
 # from backtest import run_backtest
 # from metrics import compute_metrics
+import numpy as np
 
-# from frontend.sidebar import render_sidebar
-# from frontend.charts import render_charts
-# from frontend.metrics import render_metrics
+# from sidebar import render_sidebar
+from charts import render_charts
+# from metrics import render_metrics
 
 st.set_page_config(page_title="Strategy Backtester", layout="wide")
 
 st.title("📊 Strategy Research & Backtesting Tool")
 
+
+dates = pd.date_range(start="2023-01-01", periods=100)
+
+df = pd.DataFrame({
+    "Date": dates,
+    "Close": np.cumsum(np.random.randn(100)) + 100,
+})
+
+df["signal"] = 0
+df.loc[::15, "signal"] = 1   # fake buys
+df.loc[7::15, "signal"] = -1 # fake sells
+
+equity_curve = df["Close"].copy()
+
+mock_results = {
+    "data": df.set_index("Date"),
+    "equity_curve": equity_curve,
+    "trades": []
+}
+
+render_charts(mock_results)
 # -------------------------
 # Sidebar Inputs
 # -------------------------
@@ -39,7 +64,7 @@ st.title("📊 Strategy Research & Backtesting Tool")
 #     col1, col2 = st.columns([3, 1])
 
 #     with col1:
-#         render_charts(results)
+        # render_charts(results)
 
 #     with col2:
 #         render_metrics(results)
