@@ -4,10 +4,17 @@ import yfinance as yf
 
 from fastapi import APIRouter, HTTPException
 
-from app.models import BacktestRequest, BacktestResponse
+from app.backtest import run_backtest as execute_backtest
+from app.models import (
+    BacktestRequest,
+    BacktestResponse,
+    PortfolioBacktestRequest,
+    PortfolioBacktestResponse,
+)
 from app.strategies.strategy_ema import run_strategy as run_ema_strategy
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
+from app.portfolio_backtest import compute_portfolio_metrics
 
 router = APIRouter()
 
@@ -133,7 +140,7 @@ def calculate_metrics(df: pd.DataFrame, trades: list, initial_capital: float):
     return metrics
 
 @router.post("/backtest/run", response_model=BacktestResponse)
-def run_backtest(request: BacktestRequest):
+def run_single_backtest(request: BacktestRequest):
     try:
         price_df = fetch_price_data(
             ticker=request.ticker,
@@ -173,3 +180,56 @@ def run_backtest(request: BacktestRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+@router.post("/backtest/run-portfolio", response_model=PortfolioBacktestResponse)
+def run_portfolio_backtest(request: PortfolioBacktestRequest):
+    try:
+        if not request.tickers:
+            raise ValueError("At least one ticker must be provided.")
+
+        capital_per_ticker = request.initial_capital / len(request.tickers)
+
+        merged_df = None
+        per_ticker_metrics = {}
+
+        for ticker in request.tickers:
+            price_df = fetch_price_data(ticker, request.start_date, request.end_date)
+
+            strategy_df = run_strategy_by_name(
+                request.strategy_name,
+                price_df,
+                dict(request.strategy_params),
+            )
+
+            result_df, trades, metrics = execute_backtest(strategy_df, capital_per_ticker)
+            per_ticker_metrics[ticker] = metrics
+
+            keep_df = result_df[["Date", "strategy_eq", "buyhold_eq"]].copy()
+            keep_df = keep_df.rename(columns={
+                "strategy_eq": f"strategy_eq_{ticker}",
+                "buyhold_eq": f"buyhold_eq_{ticker}",
+            })
+
+            if merged_df is None:
+                merged_df = keep_df
+            else:
+                merged_df = pd.merge(merged_df, keep_df, on="Date", how="inner")
+
+        strategy_cols = [c for c in merged_df.columns if c.startswith("strategy_eq_")]
+        buyhold_cols = [c for c in merged_df.columns if c.startswith("buyhold_eq_")]
+
+        merged_df["portfolio_strategy_eq"] = merged_df[strategy_cols].sum(axis=1)
+        merged_df["portfolio_buyhold_eq"] = merged_df[buyhold_cols].sum(axis=1)
+
+        portfolio_metrics = compute_portfolio_metrics(merged_df, request.initial_capital)
+
+        return {
+            "tickers": request.tickers,
+            "strategy_name": request.strategy_name,
+            "portfolio_metrics": portfolio_metrics,
+            "per_ticker_metrics": per_ticker_metrics,
+            "portfolio_signal_rows": merged_df.to_dict(orient="records"),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
