@@ -1,15 +1,16 @@
 import streamlit as st
 import requests
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
+
 # from data import load_data
 # from indicators import compute_indicators
 # from strategy import generate_signals
 # from backtest import run_backtest
 # from metrics import compute_metrics
-import numpy as np
 
-# from sidebar import render_sidebar
+from sidebar import render_sidebar
 from charts import render_charts
 # from metrics import render_metrics
 
@@ -36,13 +37,29 @@ mock_results = {
     "equity_curve": equity_curve,
     "trades": []
 }
-
-render_charts(mock_results)
 # -------------------------
 # Sidebar Inputs
 # -------------------------
-# params = render_sidebar()
+params = render_sidebar()
 
+if not params["run"]:
+    st.info(" Configure your strategy in the sidebar and click 'Run Backtest'")
+if params["run"]:
+    st.success("Backtest triggered ")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Configuration")
+        st.json(params)
+
+    with col2:
+        st.subheader("Summary")
+        st.write(f"**Tier:** {params['tier']}")
+        st.write(f"**Strategy:** {params['strategy']}")
+        st.write(f"**Assets:** {params['assets']}")
+
+render_charts(mock_results) ##Move this line to below when merging with metrics
 # -------------------------
 # Run Pipeline
 # -------------------------
