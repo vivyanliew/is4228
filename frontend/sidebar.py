@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 # CONSTANTS
 ASSETS = [
@@ -51,8 +52,15 @@ def render_sidebar():
     # Date Range
     st.sidebar.markdown("### Date Range")
 
-    start_date = st.sidebar.date_input("Start Date")
-    end_date = st.sidebar.date_input("End Date")
+    start_date = st.sidebar.date_input(
+        "Start Date",
+        value=pd.to_datetime("2022-01-01")
+    )
+
+    end_date = st.sidebar.date_input(
+        "End Date",
+        value=pd.to_datetime("2025-12-31")  
+    )
 
     st.sidebar.divider()
 

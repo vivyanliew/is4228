@@ -16,6 +16,7 @@ from app.strategies.strategy_macd import run_strategy as run_macd_strategy
 from app.strategies.strategy_macd import run_strategy_multi_ticker as run_macd_multi_strategy
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
 from app.portfolio_backtest import compute_portfolio_metrics
+from app.market_intel import get_market_intel
 
 router = APIRouter()
 
@@ -283,3 +284,15 @@ def run_macd_multi_backtest(request: PortfolioBacktestRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    
+
+
+@router.get("/market-intel/{ticker}")
+def get_market_intel_endpoint(ticker: str):
+    try:
+        return get_market_intel(ticker)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error fetching data for {ticker}: {str(e)}"
+        )

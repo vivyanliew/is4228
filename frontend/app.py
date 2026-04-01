@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from api import build_payload
 
 # from data import load_data
 # from indicators import compute_indicators
@@ -26,13 +27,16 @@ params = render_sidebar()
 if not params["run"]:
     st.info(" Configure your strategy in the sidebar and click 'Run Backtest'")
 if params["run"]:
-    st.success("Backtest triggered ")
+    st.success("Backtest triggered")
+
+    # Build payload
+    payload = build_payload(params)
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Configuration")
-        st.json(params)
+        st.json(payload)
 
     with col2:
         st.subheader("Summary")
@@ -41,69 +45,79 @@ if params["run"]:
         st.write(f"**Assets:** {params['assets']}")
 
 ## from test_frontend_portfolio_mean_reversion.py 
-payload = { #what is needed to pass into strategies 
-    "tickers": params['assets'],
-    "start_date": params['start_date'].isoformat(),
-    "end_date": params['end_date'].isoformat(),
-    "initial_capital": float(10000),
-    "strategy_name": params['strategy'],
-    "strategy_params": {
-        "bb_window": int(params['params']['bb_window']),
-        "bb_std": float(2.0),
-        "rsi_window": int(14),
-        "rsi_entry": float(params['params']['rsi_low']), 
-        "rsi_exit": float(params['params']['rsi_high']),
-    },
-}
-tickers = params['assets']
+# payload = { #what is needed to pass into strategies 
+#     "tickers": params['assets'],
+#     "start_date": params['start_date'].isoformat(),
+#     "end_date": params['end_date'].isoformat(),
+#     "initial_capital": float(10000),
+#     "strategy_name": params['strategy'],
+#     "strategy_params": {
+#         "bb_window": int(params['params']['bb_window']),
+#         "bb_std": float(2.0),
+#         "rsi_window": int(14),
+#         "rsi_entry": float(params['params']['rsi_low']), 
+#         "rsi_exit": float(params['params']['rsi_high']),
+#     },
+# }
+# tickers = params['assets']
 # st.subheader("Request Body")
 # st.json(payload)
+    # Call backend
+    with st.spinner("Running backtest..."):
+        try:
+            response = requests.post(
+                "http://127.0.0.1:8000/backtest/run",
+                json=payload,
+                timeout=30
+            )
 
-if st.button("Run Portfolio Backtest"):
-    if not tickers:
-        st.warning("Please select at least one ticker.")
-    else:
-        response = requests.post(
-            "http://127.0.0.1:8000/backtest/run-portfolio",
-            json=payload
-        )
-
-        if response.status_code != 200:
-            st.error(f"API error: {response.status_code}")
-            try:
-                st.json(response.json())
-            except Exception:
+            if response.status_code != 200:
+                st.error(f"API Error: {response.status_code}")
                 st.write(response.text)
-        else:
+                st.stop()
+
             data = response.json()
-            render_metrics(data)
-            render_charts(data)
 
+        except Exception as e:
+            st.error(f"Request failed: {e}")
+            st.stop()
 
+    # Transform backend → frontend format
 
-            
-# # -------------------------
-# # Run Pipeline
-# # -------------------------
-# # if st.button("Run Backtest"):
+    df = pd.DataFrame(data["signal_rows"])
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.set_index("Date", inplace=True)
 
-# #     df = load_data(params["ticker"], params["start"], params["end"])
-# #     df = compute_indicators(df, params)
-# #     df = generate_signals(df, params)
+    results = {
+        "data": df,
+        "equity_curve": df["strategy_eq"],
+        "trades": data.get("trades", [])
+    }
 
-# #     results = run_backtest(df)
-# #     metrics = compute_metrics(results)
+    # -------------------------
+    # Render charts
+    # -------------------------
+    render_charts(results)
 
-# #     results["data"] = df
-# #     results["metrics"] = metrics
+# -------------------------
+# Run Pipeline
+# -------------------------
+# if st.button("Run Backtest"):
+#     if not tickers:
+#         st.warning("Please select at least one ticker.")
+#     else:
+#         response = requests.post(
+#             "http://127.0.0.1:8000/backtest/run-portfolio",
+#             json=payload
+#         )
 
-# #     # -------------------------
-# #     # Layout
-# #     # -------------------------
-# #     col1, col2 = st.columns([3, 1])
-
-# #     with col1:
-#         # render_charts(results)
-
-# #     with col2:
-# #         render_metrics(results)
+#         if response.status_code != 200:
+#             st.error(f"API error: {response.status_code}")
+#             try:
+#                 st.json(response.json())
+#             except Exception:
+#                 st.write(response.text)
+#         else:
+#             data = response.json()
+#             render_metrics(data)
+#             render_charts(data)

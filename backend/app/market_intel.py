@@ -1,0 +1,89 @@
+import yfinance as yf
+import requests
+from datetime import datetime, timedelta
+import cohere
+
+import os
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+co = cohere.Client(COHERE_API_KEY)
+
+#llm summarisation
+def summarise_with_cohere(news_articles, ticker, revenue, eps):
+    news_text = "\n".join([f"- {a['title']}" for a in news_articles])
+
+    if not news_text.strip():
+        news_text = "No recent news available."
+
+    prompt = (
+        f"{ticker} has revenue ${revenue:,.2f} and EPS ${eps:.2f}.\n"
+        f"Recent news:\n{news_text}\n\n"
+        "Summarise this in 2-3 sentences."
+    )
+
+    response = co.chat(   
+        model="command-a-03-2025", 
+        message=prompt,
+    )
+
+    return response.text.strip()
+
+def get_market_intel(ticker: str):
+    try:
+        # Stock data
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        revenue = info.get("totalRevenue", 0)
+        eps = info.get("trailingEps", 0)
+        summary = f"{ticker} reports revenue of ${revenue:,.2f} and EPS of ${eps:.2f}."
+
+        # News
+        end = datetime.now()
+        start = end - timedelta(days=7)
+        url = "https://finnhub.io/api/v1/company-news"
+        params = {
+            "symbol": ticker,
+            "from": start.strftime("%Y-%m-%d"),
+            "to": end.strftime("%Y-%m-%d"),
+            "token": "d75nj49r01qk56kde0j0d75nj49r01qk56kde0jg"
+        }
+        res = requests.get(url, params=params)
+        articles = res.json()
+
+        news = []
+        for article in articles[:5]:
+            title = article.get("headline") or article.get("summary") or "No Title"
+            url = article.get("url")
+            news.append({"title": title, "url": url})
+
+        if not news:
+            news = [{"title": "No news available", "url": ""}]
+
+        # Sentiment
+        positive_keywords = ["gain", "growth", "surge", "positive", "expansion", "record"]
+        negative_keywords = ["loss", "decline", "drop", "negative", "reduction", "miss"]
+
+        sentiment = "Neutral"
+        for item in news:
+            title_lower = item['title'].lower()
+            if any(word in title_lower for word in positive_keywords):
+                sentiment = "Positive"
+                break
+            elif any(word in title_lower for word in negative_keywords):
+                sentiment = "Negative"
+                break
+
+        # LLM summary
+        llm_summary = summarise_with_cohere(news, ticker, revenue, eps)
+
+        return {
+            "ticker": ticker,
+            "revenue": revenue,
+            "eps": eps,
+            "news": news,
+            "summary": summary,
+            "sentiment": sentiment,
+            "llm_summary": llm_summary
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
