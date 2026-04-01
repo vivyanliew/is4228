@@ -77,21 +77,17 @@ else:
     st.subheader("AI Summary")
     st.write(data.get("llm_summary", "No AI summary available."))
 
-    left, right = st.columns([1.1, 0.9])
+    st.subheader("Recent News")
+    for article in data.get("news", []):
+        title = article.get("title", "Untitled article")
+        url = article.get("url", "")
 
-    with left:
-        st.subheader("Company Snapshot")
-        st.write(data.get("summary", "No summary available."))
-
-    with right:
-        st.subheader("Recent News")
-        for article in data.get("news", []):
-            title = article.get("title", "Untitled article")
-            url = article.get("url", "")
+        with st.container(border=True):
+            st.markdown(f"**{title}**")
             if url:
-                st.markdown(f"- [{title}]({url})")
+                st.markdown(f"[Open article]({url})")
             else:
-                st.markdown(f"- {title}")
+                st.caption("No article link available.")
 
     if params["show_request"]:
         st.subheader("Raw API Response")
