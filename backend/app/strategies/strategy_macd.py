@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from typing import List, Dict, Union
 
 
 def add_indicators(
@@ -102,3 +103,72 @@ def run_strategy(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     out = add_indicators(df, **params)
     out = generate_signals(out)
     return out
+
+
+def run_strategy_multi_ticker(
+    price_dfs: Dict[str, pd.DataFrame],
+    params: dict
+) -> pd.DataFrame:
+    """
+    Run MACD strategy on multiple tickers with equal weighting.
+    
+    Args:
+        price_dfs: Dictionary mapping ticker symbols to their price dataframes
+        params: Strategy parameters (macd_fast, macd_slow, etc.)
+    
+    Returns:
+        Combined dataframe with equal-weighted positions and signals
+    """
+    if not price_dfs:
+        raise ValueError("At least one ticker must be provided.")
+    
+    tickers = list(price_dfs.keys())
+    num_tickers = len(tickers)
+    weight = 1.0 / num_tickers
+    
+    # Run strategy on each ticker
+    strategy_results = {}
+    for ticker, price_df in price_dfs.items():
+        strategy_results[ticker] = run_strategy(price_df, params)
+    
+    # Merge all dataframes by Date
+    merged_df = None
+    for ticker in tickers:
+        df = strategy_results[ticker][["Date", "Close", "position"]].copy()
+        df = df.rename(columns={
+            "Close": f"close_{ticker}",
+            "position": f"position_{ticker}"
+        })
+        
+        if merged_df is None:
+            merged_df = df
+        else:
+            merged_df = pd.merge(merged_df, df, on="Date", how="inner")
+    
+    # Calculate equal-weighted portfolio position (average of all positions)
+    position_cols = [f"position_{ticker}" for ticker in tickers]
+    merged_df["position"] = merged_df[position_cols].mean(axis=1)
+    
+    # Threshold: if average position >= 0.5, consider it as position=1, else 0
+    merged_df["position"] = (merged_df["position"] >= 0.5).astype(int)
+    
+    # Calculate weighted close price
+    close_cols = [f"close_{ticker}" for ticker in tickers]
+    merged_df["Close"] = merged_df[close_cols].mean(axis=1)
+    
+    # Generate buy/sell markers based on position changes
+    prev_position = merged_df["position"].shift(1).fillna(0)
+    
+    merged_df["buy_marker"] = np.where(
+        (merged_df["position"] == 1) & (prev_position == 0),
+        merged_df["Close"],
+        np.nan,
+    )
+    
+    merged_df["sell_marker"] = np.where(
+        (merged_df["position"] == 0) & (prev_position == 1),
+        merged_df["Close"],
+        np.nan,
+    )
+    
+    return merged_df
