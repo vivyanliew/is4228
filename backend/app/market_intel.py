@@ -2,9 +2,16 @@ import yfinance as yf
 import requests
 from datetime import datetime, timedelta
 import cohere
-
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+
 co = cohere.Client(COHERE_API_KEY)
 
 #llm summarisation
@@ -44,7 +51,7 @@ def get_market_intel(ticker: str):
             "symbol": ticker,
             "from": start.strftime("%Y-%m-%d"),
             "to": end.strftime("%Y-%m-%d"),
-            "token": "d75nj49r01qk56kde0j0d75nj49r01qk56kde0jg"
+            "token": FINNHUB_API_KEY
         }
         res = requests.get(url, params=params)
         articles = res.json()
