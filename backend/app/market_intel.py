@@ -41,7 +41,6 @@ def get_market_intel(ticker: str):
         info = stock.info
         revenue = info.get("totalRevenue", 0)
         eps = info.get("trailingEps", 0)
-        summary = f"{ticker} reports revenue of ${revenue:,.2f} and EPS of ${eps:.2f}."
 
         # News
         end = datetime.now()
@@ -87,7 +86,6 @@ def get_market_intel(ticker: str):
             "revenue": revenue,
             "eps": eps,
             "news": news,
-            "summary": summary,
             "sentiment": sentiment,
             "llm_summary": llm_summary
         }
