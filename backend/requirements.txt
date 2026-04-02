@@ -4,3 +4,5 @@ pandas
 numpy
 yfinance
 pydantic
+cohere
+python-dotenv
