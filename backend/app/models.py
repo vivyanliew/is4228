@@ -65,10 +65,14 @@ class PortfolioBacktestRequest(pydantic.BaseModel):
     end_date: str = pydantic.Field(..., example="2025-01-01")
     initial_capital: float = pydantic.Field(10000.0, example=10000.0)
 
-    strategy_name: Literal["macd", "mean_reversion"] = pydantic.Field(
-        ..., example="mean_reversion"
+    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
+        ..., example="trend_follower"
     )
-    strategy_params: Union[MacdStrategyParams, MeanReversionStrategyParams]
+    strategy_params: Union[
+        MacdStrategyParams,
+        MeanReversionStrategyParams,
+        TrendFollowerStrategyParams,
+    ]
 
 
 class PortfolioBacktestResponse(pydantic.BaseModel):
@@ -76,4 +80,5 @@ class PortfolioBacktestResponse(pydantic.BaseModel):
     strategy_name: str
     portfolio_metrics: Dict[str, Any]
     per_ticker_metrics: Dict[str, Dict[str, Any]]
+    per_ticker_signal_rows: Dict[str, List[Dict[str, Any]]]
     portfolio_signal_rows: List[Dict[str, Any]]

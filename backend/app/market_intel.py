@@ -2,9 +2,16 @@ import yfinance as yf
 import requests
 from datetime import datetime, timedelta
 import cohere
-
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+
 co = cohere.Client(COHERE_API_KEY)
 
 #llm summarisation
@@ -34,7 +41,6 @@ def get_market_intel(ticker: str):
         info = stock.info
         revenue = info.get("totalRevenue", 0)
         eps = info.get("trailingEps", 0)
-        summary = f"{ticker} reports revenue of ${revenue:,.2f} and EPS of ${eps:.2f}."
 
         # News
         end = datetime.now()
@@ -44,7 +50,7 @@ def get_market_intel(ticker: str):
             "symbol": ticker,
             "from": start.strftime("%Y-%m-%d"),
             "to": end.strftime("%Y-%m-%d"),
-            "token": "d75nj49r01qk56kde0j0d75nj49r01qk56kde0jg"
+            "token": FINNHUB_API_KEY
         }
         res = requests.get(url, params=params)
         articles = res.json()
@@ -80,7 +86,6 @@ def get_market_intel(ticker: str):
             "revenue": revenue,
             "eps": eps,
             "news": news,
-            "summary": summary,
             "sentiment": sentiment,
             "llm_summary": llm_summary
         }

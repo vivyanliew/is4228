@@ -188,12 +188,17 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
         if not request.tickers:
             raise ValueError("At least one ticker must be provided.")
 
-        capital_per_ticker = request.initial_capital / len(request.tickers)
+        normalized_tickers = [ticker.strip().upper() for ticker in request.tickers if ticker.strip()]
+        if not normalized_tickers:
+            raise ValueError("At least one valid ticker must be provided.")
+
+        capital_per_ticker = request.initial_capital / len(normalized_tickers)
 
         merged_df = None
         per_ticker_metrics = {}
+        per_ticker_signal_rows = {}
 
-        for ticker in request.tickers:
+        for ticker in normalized_tickers:
             price_df = fetch_price_data(ticker, request.start_date, request.end_date)
 
             strategy_df = run_strategy_by_name(
@@ -204,6 +209,7 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
 
             result_df, trades, metrics = execute_backtest(strategy_df, capital_per_ticker)
             per_ticker_metrics[ticker] = metrics
+            per_ticker_signal_rows[ticker] = result_df.to_dict(orient="records")
 
             keep_df = result_df[["Date", "strategy_eq", "buyhold_eq"]].copy()
             keep_df = keep_df.rename(columns={
@@ -225,10 +231,11 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
         portfolio_metrics = compute_portfolio_metrics(merged_df, request.initial_capital)
 
         return {
-            "tickers": request.tickers,
+            "tickers": normalized_tickers,
             "strategy_name": request.strategy_name,
             "portfolio_metrics": portfolio_metrics,
             "per_ticker_metrics": per_ticker_metrics,
+            "per_ticker_signal_rows": per_ticker_signal_rows,
             "portfolio_signal_rows": merged_df.to_dict(orient="records"),
         }
 
