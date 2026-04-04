@@ -13,6 +13,7 @@ from app.models import (
 )
 from app.strategies.strategy_ema import run_strategy as run_ema_strategy
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
+from app.strategies.strategy_macd import run_strategy_multi_ticker as run_macd_multi_strategy
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
 from app.portfolio_backtest import compute_portfolio_metrics
 from app.market_intel import get_market_intel
