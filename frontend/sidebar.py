@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 # CONSTANTS
 ASSETS = [
@@ -51,8 +52,15 @@ def render_sidebar():
     # Date Range
     st.sidebar.markdown("### Date Range")
 
-    start_date = st.sidebar.date_input("Start Date")
-    end_date = st.sidebar.date_input("End Date")
+    start_date = st.sidebar.date_input(
+        "Start Date",
+        value=pd.to_datetime("2022-01-01")
+    )
+
+    end_date = st.sidebar.date_input(
+        "End Date",
+        value=pd.to_datetime("2025-12-31")  
+    )
 
     st.sidebar.divider()
 
@@ -126,4 +134,26 @@ def render_sidebar():
         "strategy": strategy,
         "params": params,
         "run": run
+    }
+
+
+def render_market_intel_sidebar():
+    st.sidebar.title("Market Intelligence")
+    st.sidebar.markdown("Research a single ticker and get a quick fundamentals, news, and AI-generated summary snapshot.")
+
+    ticker = st.sidebar.text_input(
+        "Ticker",
+        value="AAPL",
+        help="Enter one US equity ticker, for example AAPL, NVDA, or MSFT.",
+    ).strip().upper()
+
+    show_request = st.sidebar.toggle("Show Raw API Response", value=False)
+
+    st.sidebar.divider()
+    run = st.sidebar.button("Fetch Market Intel", use_container_width=True)
+
+    return {
+        "ticker": ticker,
+        "show_request": show_request,
+        "run": run,
     }

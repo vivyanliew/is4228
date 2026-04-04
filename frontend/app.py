@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from api import build_payload
 
 # from data import load_data
 # from indicators import compute_indicators
@@ -45,13 +46,16 @@ params = render_sidebar()
 if not params["run"]:
     st.info(" Configure your strategy in the sidebar and click 'Run Backtest'")
 if params["run"]:
-    st.success("Backtest triggered ")
+    st.success("Backtest triggered")
+
+    # Build payload
+    payload = build_payload(params)
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Configuration")
-        st.json(params)
+        st.json(payload)
 
     with col2:
         st.subheader("Summary")
@@ -59,7 +63,44 @@ if params["run"]:
         st.write(f"**Strategy:** {params['strategy']}")
         st.write(f"**Assets:** {params['assets']}")
 
-render_charts(mock_results) ##Move this line to below when merging with metrics
+    # Call backend
+    with st.spinner("Running backtest..."):
+        try:
+            response = requests.post(
+                "http://127.0.0.1:8000/backtest/run",
+                json=payload,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                st.error(f"API Error: {response.status_code}")
+                st.write(response.text)
+                st.stop()
+
+            data = response.json()
+
+        except Exception as e:
+            st.error(f"Request failed: {e}")
+            st.stop()
+
+    # Transform backend → frontend format
+
+    df = pd.DataFrame(data["signal_rows"])
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.set_index("Date", inplace=True)
+
+    results = {
+        "data": df,
+        "equity_curve": df["strategy_eq"],
+        "trades": data.get("trades", [])
+    }
+
+    # -------------------------
+    # Render charts
+    # -------------------------
+    render_charts(results)
+
+# render_charts(mock_results) ##Move this line to below when merging with metrics
 # -------------------------
 # Run Pipeline
 # -------------------------

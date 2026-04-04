@@ -16,6 +16,7 @@ from app.strategies.strategy_macd import run_strategy as run_macd_strategy
 from app.strategies.strategy_macd import run_strategy_multi_ticker as run_macd_multi_strategy
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
 from app.portfolio_backtest import compute_portfolio_metrics
+from app.market_intel import get_market_intel
 
 router = APIRouter()
 
@@ -188,12 +189,17 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
         if not request.tickers:
             raise ValueError("At least one ticker must be provided.")
 
-        capital_per_ticker = request.initial_capital / len(request.tickers)
+        normalized_tickers = [ticker.strip().upper() for ticker in request.tickers if ticker.strip()]
+        if not normalized_tickers:
+            raise ValueError("At least one valid ticker must be provided.")
+
+        capital_per_ticker = request.initial_capital / len(normalized_tickers)
 
         merged_df = None
         per_ticker_metrics = {}
+        per_ticker_signal_rows = {}
 
-        for ticker in request.tickers:
+        for ticker in normalized_tickers:
             price_df = fetch_price_data(ticker, request.start_date, request.end_date)
 
             strategy_df = run_strategy_by_name(
@@ -204,6 +210,7 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
 
             result_df, trades, metrics = execute_backtest(strategy_df, capital_per_ticker)
             per_ticker_metrics[ticker] = metrics
+            per_ticker_signal_rows[ticker] = result_df.to_dict(orient="records")
 
             keep_df = result_df[["Date", "strategy_eq", "buyhold_eq"]].copy()
             keep_df = keep_df.rename(columns={
@@ -225,61 +232,25 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
         portfolio_metrics = compute_portfolio_metrics(merged_df, request.initial_capital)
 
         return {
-            "tickers": request.tickers,
+            "tickers": normalized_tickers,
             "strategy_name": request.strategy_name,
             "portfolio_metrics": portfolio_metrics,
             "per_ticker_metrics": per_ticker_metrics,
+            "per_ticker_signal_rows": per_ticker_signal_rows,
             "portfolio_signal_rows": merged_df.to_dict(orient="records"),
         }
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/backtest/run-macd-multi", response_model=BacktestResponse)
-def run_macd_multi_backtest(request: PortfolioBacktestRequest):
-    """
-    Run MACD strategy on multiple tickers with equal weighting within the strategy.
-    """
-    try:
-        if not request.tickers:
-            raise ValueError("At least one ticker must be provided.")
-        
-        # Fetch price data for all tickers
-        price_dfs = {}
-        for ticker in request.tickers:
-            price_dfs[ticker] = fetch_price_data(ticker, request.start_date, request.end_date)
-        
-        # Run multi-ticker MACD strategy
-        signal_df = run_macd_multi_strategy(
-            price_dfs=price_dfs,
-            params=dict(request.strategy_params),
-        )
-        
-        # Add backtest columns and calculate metrics
-        signal_df = add_backtest_columns(
-            df=signal_df,
-            initial_capital=request.initial_capital,
-        )
-        
-        trades = build_trade_records(signal_df)
-        metrics = calculate_metrics(
-            df=signal_df,
-            trades=trades,
-            initial_capital=request.initial_capital,
-        )
-        
-        signal_rows = signal_df.to_dict(orient="records")
-        
-        return BacktestResponse(
-            ticker=",".join(request.tickers),
-            strategy_name=f"{request.strategy_name}_multi",
-            metrics=metrics,
-            trades=trades,
-            signal_rows=signal_rows,
-        )
     
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/market-intel/{ticker}")
+def get_market_intel_endpoint(ticker: str):
+    try:
+        return get_market_intel(ticker)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error fetching data for {ticker}: {str(e)}"
+        )
