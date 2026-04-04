@@ -1,55 +1,46 @@
 import streamlit as st
 import requests
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
+
 from api import build_payload
-
-# from data import load_data
-# from indicators import compute_indicators
-# from strategy import generate_signals
-# from backtest import run_backtest
-# from metrics import compute_metrics
-
 from sidebar import render_sidebar
-from charts import render_charts
-# from metrics import render_metrics
+from charts import render_charts_mean_reversion, render_charts_trend, render_charts_breakout
+from metrics import render_metrics_mean_reversion, render_metrics_trend, render_metrics_breakout
 
 st.set_page_config(page_title="Strategy Backtester", layout="wide")
 
-st.title("📊 Strategy Research & Backtesting Tool")
+st.title("Strategy Research & Backtesting Tool")
 
+if "submitted_params" not in st.session_state:
+    st.session_state["submitted_params"] = None
 
-dates = pd.date_range(start="2023-01-01", periods=100)
-
-df = pd.DataFrame({
-    "Date": dates,
-    "Close": np.cumsum(np.random.randn(100)) + 100,
-})
-
-df["signal"] = 0
-df.loc[::15, "signal"] = 1   # fake buys
-df.loc[7::15, "signal"] = -1 # fake sells
-
-equity_curve = df["Close"].copy()
-
-mock_results = {
-    "data": df.set_index("Date"),
-    "equity_curve": equity_curve,
-    "trades": []
+STRATEGY_REGISTRY = {
+    "mean_reversion": {
+        "endpoint": "http://127.0.0.1:8000/backtest/run-portfolio"
+    },
+    "trend": {
+        "endpoint": "http://127.0.0.1:8000/backtest/run-portfolio" ##change this accordingly
+    },
+    "macd": {
+        "endpoint": "http://127.0.0.1:8000/backtest/run-macd-multi"
+    },
 }
+
 # -------------------------
 # Sidebar Inputs
 # -------------------------
 params = render_sidebar()
 
-if not params["run"]:
-    st.info(" Configure your strategy in the sidebar and click 'Run Backtest'")
 if params["run"]:
-    st.success("Backtest triggered")
+    st.session_state["submitted_params"] = params
 
-    # Build payload
-    payload = build_payload(params)
+active_params = st.session_state["submitted_params"]
+
+if active_params is None:
+    st.info("Configure your strategy in the sidebar and click 'Run Backtest'.")
+else:
+    st.success("Backtest configuration captured.")
+
+    payload = build_payload(active_params)
 
     col1, col2 = st.columns(2)
 
@@ -59,70 +50,46 @@ if params["run"]:
 
     with col2:
         st.subheader("Summary")
-        st.write(f"**Tier:** {params['tier']}")
-        st.write(f"**Strategy:** {params['strategy']}")
-        st.write(f"**Assets:** {params['assets']}")
+        st.write(f"**Tier:** {active_params['tier']}")
+        st.write(f"**Strategy:** {active_params['strategy']}")
+        st.write(f"**Assets:** {active_params['assets']}")
 
-    # Call backend
-    with st.spinner("Running backtest..."):
-        try:
-            response = requests.post(
-                "http://127.0.0.1:8000/backtest/run",
-                json=payload,
-                timeout=30
-            )
+    strategy_name = active_params["strategy"]
+    strategy = STRATEGY_REGISTRY[strategy_name]
+    tickers = active_params["assets"]
 
-            if response.status_code != 200:
-                st.error(f"API Error: {response.status_code}")
-                st.write(response.text)
-                st.stop()
+    if st.button("Run Portfolio Backtest"):
+        if not tickers:
+            st.warning("Please select at least one ticker.")
+        else:
+            try:
+                with st.spinner("Running portfolio backtest..."):
+                    response = requests.post(
+                        strategy["endpoint"],
+                        json=payload,
+                        timeout=60,
+                    )
 
-            data = response.json()
+                if response.status_code != 200:
+                    st.error(f"API error: {response.status_code}")
+                    try:
+                        st.json(response.json())
+                    except Exception:
+                        st.write(response.text)
+                else:
+                    data = response.json()
 
-        except Exception as e:
-            st.error(f"Request failed: {e}")
-            st.stop()
-
-    # Transform backend → frontend format
-
-    df = pd.DataFrame(data["signal_rows"])
-    df["Date"] = pd.to_datetime(df["Date"])
-    df.set_index("Date", inplace=True)
-
-    results = {
-        "data": df,
-        "equity_curve": df["strategy_eq"],
-        "trades": data.get("trades", [])
-    }
-
-    # -------------------------
-    # Render charts
-    # -------------------------
-    render_charts(results)
-
-# render_charts(mock_results) ##Move this line to below when merging with metrics
-# -------------------------
-# Run Pipeline
-# -------------------------
-# if st.button("Run Backtest"):
-
-#     df = load_data(params["ticker"], params["start"], params["end"])
-#     df = compute_indicators(df, params)
-#     df = generate_signals(df, params)
-
-#     results = run_backtest(df)
-#     metrics = compute_metrics(results)
-
-#     results["data"] = df
-#     results["metrics"] = metrics
-
-#     # -------------------------
-#     # Layout
-#     # -------------------------
-#     col1, col2 = st.columns([3, 1])
-
-#     with col1:
-        # render_charts(results)
-
-#     with col2:
-#         render_metrics(results)
+                    if strategy_name == "mean_reversion":
+                        render_metrics_mean_reversion(data)
+                        render_charts_mean_reversion(data)
+                    elif strategy_name == "trend":
+                        render_metrics_trend(data)
+                        render_charts_trend(data)
+                    else:
+                        render_metrics_breakout(data)
+                        render_charts_breakout(data)
+            except requests.RequestException as exc:
+                st.error(
+                    "Could not reach the backend API at http://127.0.0.1:8000. "
+                    f"Details: {exc}"
+                )

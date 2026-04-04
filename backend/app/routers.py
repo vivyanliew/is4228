@@ -242,6 +242,55 @@ def run_portfolio_backtest(request: PortfolioBacktestRequest):
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/backtest/run-macd-multi", response_model=BacktestResponse)
+def run_macd_multi_backtest(request: PortfolioBacktestRequest):
+    """
+    Run MACD strategy on multiple tickers with equal weighting within the strategy.
+    """
+    try:
+        if not request.tickers:
+            raise ValueError("At least one ticker must be provided.")
+        
+        # Fetch price data for all tickers
+        price_dfs = {}
+        for ticker in request.tickers:
+            price_dfs[ticker] = fetch_price_data(ticker, request.start_date, request.end_date)
+        
+        # Run multi-ticker MACD strategy
+        signal_df = run_macd_multi_strategy(
+            price_dfs=price_dfs,
+            params=dict(request.strategy_params),
+        )
+        
+        # Add backtest columns and calculate metrics
+        signal_df = add_backtest_columns(
+            df=signal_df,
+            initial_capital=request.initial_capital,
+        )
+        
+        trades = build_trade_records(signal_df)
+        metrics = calculate_metrics(
+            df=signal_df,
+            trades=trades,
+            initial_capital=request.initial_capital,
+        )
+        
+        signal_rows = signal_df.to_dict(orient="records")
+        
+        return BacktestResponse(
+            ticker=",".join(request.tickers),
+            strategy_name=f"{request.strategy_name}_multi",
+            metrics=metrics,
+            trades=trades,
+            signal_rows=signal_rows,
+        )
+    
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     
 
 

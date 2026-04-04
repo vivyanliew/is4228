@@ -12,7 +12,7 @@ ASSETS = [
 STRATEGIES = {
     "Mean Reversion (RSI + Bollinger)": "mean_reversion",
     "Trend Follower (EMA + ADX)": "trend",
-    "Volatility Breakout (MACD + BB Width)": "breakout"
+    "Volatility Breakout (MACD + BB Width)": "macd"
 }
 
 TIERS = {
@@ -54,7 +54,7 @@ def render_sidebar():
 
     start_date = st.sidebar.date_input(
         "Start Date",
-        value=pd.to_datetime("2022-01-01")
+        value=pd.to_datetime("2025-01-01")
     )
 
     end_date = st.sidebar.date_input(
@@ -98,7 +98,7 @@ def render_sidebar():
 
         params["adx_threshold"] = st.sidebar.slider("ADX Threshold", 10, 50, 25)
 
-    elif strategy == "breakout":
+    elif strategy == "macd":
         params["macd_fast"] = st.sidebar.slider("MACD Fast", 5, 20, 12)
         params["macd_slow"] = st.sidebar.slider("MACD Slow", 20, 50, 26)
 

@@ -1,30 +1,63 @@
 import streamlit as st
-import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.graph_objects as go
 
-def render_charts(results):
-    df = results["data"]
-    equity = results["equity_curve"]
+def render_charts_mean_reversion(results):
+    data = results
+    df = pd.DataFrame(data["portfolio_signal_rows"])
+    df["Date"] = pd.to_datetime(df["Date"])
 
-    st.subheader("📈 Price Chart")
+    st.subheader("Portfolio Equity Curve")
+    fig_eq = go.Figure()
+    fig_eq.add_trace(
+        go.Scatter(
+            x=df["Date"],
+            y=df["portfolio_strategy_eq"],
+            name="Portfolio Strategy Equity"
+        )
+    )
+    fig_eq.add_trace(
+        go.Scatter(
+            x=df["Date"],
+            y=df["portfolio_buyhold_eq"],
+            name="Portfolio Buy & Hold"
+        )
+    )
+    st.plotly_chart(fig_eq, use_container_width=True)
 
-    fig, ax = plt.subplots()
-    ax.plot(df["Close"])
-    ax.set_title("Price")
+    st.subheader("Portfolio Signal Rows")
+    st.dataframe(df.tail(50), use_container_width=True)
 
-    # st.pyplot(fig, use_container_width=True)
 
-    st.subheader("💰 Equity Curve")
+def render_charts_trend(results):
 
-    fig2, ax2 = plt.subplots()
-    ax2.plot(equity)
-    ax2.set_title("Equity Curve")
+    return 
 
-    # st.pyplot(fig2, use_container_width=True)
 
-    col1, col2 = st.columns(2)
+def render_charts_breakout(results):
+    
+    data = results
 
-    with col1:
-        st.pyplot(fig, use_container_width=True)
+    df = pd.DataFrame(data["signal_rows"])
+    df["Date"] = pd.to_datetime(df["Date"])
 
-    with col2:
-        st.pyplot(fig2, use_container_width=True)
+    st.subheader("Equity Curve")
+    fig_eq = go.Figure()
+    fig_eq.add_trace(
+        go.Scatter(
+            x=df["Date"],
+            y=df["strategy_eq"],
+            name="Strategy Equity"
+        )
+    )
+    fig_eq.add_trace(
+        go.Scatter(
+            x=df["Date"],
+            y=df["buyhold_eq"],
+            name="Buy & Hold (Equal Weight)"
+        )
+    )
+    st.plotly_chart(fig_eq, use_container_width=True)
+
+    st.subheader("Signal Rows (Last 50)")
+    st.dataframe(df.tail(50), use_container_width=True)
