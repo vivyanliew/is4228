@@ -17,8 +17,8 @@ STRATEGY_REGISTRY = {
     "mean_reversion": {
         "endpoint": "http://127.0.0.1:8000/backtest/run-portfolio"
     },
-    "trend": {
-        "endpoint": "http://127.0.0.1:8000/backtest/run-portfolio" ##change this accordingly
+    "trend_follower": {
+        "endpoint": "http://127.0.0.1:8000/backtest/run-portfolio" 
     },
     "macd": {
         "endpoint": "http://127.0.0.1:8000/backtest/run-macd-multi"
@@ -32,6 +32,11 @@ params = render_sidebar()
 
 if params["run"]:
     st.session_state["submitted_params"] = params
+    # Clear previous backtest results when new params are submitted
+    if "backtest_data" in st.session_state:
+        del st.session_state["backtest_data"]
+    if "backtest_strategy" in st.session_state:
+        del st.session_state["backtest_strategy"]
 
 active_params = st.session_state["submitted_params"]
 
@@ -78,18 +83,25 @@ else:
                         st.write(response.text)
                 else:
                     data = response.json()
-
-                    if strategy_name == "mean_reversion":
-                        render_metrics_mean_reversion(data)
-                        render_charts_mean_reversion(data)
-                    elif strategy_name == "trend":
-                        render_metrics_trend(data)
-                        render_charts_trend(data)
-                    else:
-                        render_metrics_breakout(data)
-                        render_charts_breakout(data)
+                    st.session_state["backtest_data"] = data
+                    st.session_state["backtest_strategy"] = strategy_name
             except requests.RequestException as exc:
                 st.error(
                     "Could not reach the backend API at http://127.0.0.1:8000. "
                     f"Details: {exc}"
                 )
+
+# Render results if available
+if "backtest_data" in st.session_state:
+    data = st.session_state["backtest_data"]
+    strategy_name = st.session_state["backtest_strategy"]
+    
+    if strategy_name == "mean_reversion":
+        render_metrics_mean_reversion(data)
+        render_charts_mean_reversion(data)
+    elif strategy_name == "trend_follower":
+        render_metrics_trend(data)
+        render_charts_trend(data)
+    else:
+        render_metrics_breakout(data)
+        render_charts_breakout(data)

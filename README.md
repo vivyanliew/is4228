@@ -175,6 +175,12 @@ Expected results:
 - `/health` returns a status response
 - `/docs` opens the FastAPI Swagger UI
 
+### Step 8: Run Frontend 
+Make sure that you are in the 'frontend' folder
+```bash
+streamlit run app.py
+```
+
 ### Exit the Virtual Environment
 
 When you are done working, you can deactivate the virtual environment by running:

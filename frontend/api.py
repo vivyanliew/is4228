@@ -22,11 +22,12 @@ def build_payload(config):
             "bb_std": 2.0  # default (or expose later)
         }
 
-    elif strategy == "trend":
+    elif strategy == "trend_follower":
         payload["strategy_params"] = {
-            "ema_short": params["ema_short"],
-            "ema_long": params["ema_long"],
-            "adx_threshold": params["adx_threshold"]
+            "ema_fast": params["ema_short"],
+            "ema_slow": params["ema_long"],
+            "adx_threshold": params["adx_threshold"],
+            "adx_window": int(14) #placeholders, edit accordingly when sidebar includes these
         }
 
     elif strategy == "macd":
