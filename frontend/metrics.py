@@ -66,12 +66,65 @@ def render_metrics_mean_reversion(results):
             rows.append(row)
         
         df_display = pd.DataFrame(rows)
-        styled_df = df_display.style.applymap(color_vals, subset = ["Cumulative Return","Annualized Return","Max Drawdown"])
+        styled_df = df_display.style.map(color_vals, subset = ["Cumulative Return","Annualized Return","Max Drawdown"])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 def render_metrics_trend(results):
     
     data = results
+
+    # st.session_state.trend_follower_mode = "multi" if len(tickers) > 1 else "single"
+
+    # mode = st.session_state.trend_follower_mode
+
+    # if mode == "multi":
+    #     st.subheader("Per-Ticker Metrics")
+    #     per_ticker_df = pd.DataFrame(data["per_ticker_metrics"]).T.reset_index()
+    #     per_ticker_df = per_ticker_df.rename(columns={"index": "ticker"})
+    #     st.dataframe(per_ticker_df, use_container_width=True)
+
+    st.subheader("Per-Ticker Metrics")
+    ticker_metrics_raw = data["per_ticker_metrics"]
+    rename_map = {
+        "initial_capital": "Initial Capital",
+        "final_equity": "Final Equity",
+        "cumulative_return_pct": "Cumulative Return",
+        "annualized_return_pct": "Annualized Return",
+        "annualized_volatility_pct": "Volatility (Annualized)",
+        "sharpe_ratio": "Sharpe Ratio",
+        "max_drawdown_pct": "Max Drawdown",
+        "number_of_trades": "Number of trades",
+        "win_rate_pct": "Win Rate"
+    }
+
+    rows = []
+
+    for ticker, metrics in ticker_metrics_raw.items():
+        row = {"Ticker": ticker}
+        
+        for k, v in metrics.items():
+            clean_key = rename_map.get(k, k)
+            # formatting
+            if v is None: #handle missing values
+                row[clean_key] = "-"
+                continue
+            if "equity" in k or "capital" in k:
+                row[clean_key] = f"${v:,.2f}"
+            elif "pct" in k:
+                row[clean_key] = f"{v:.2f}%"
+            elif "sharpe" in k:
+                row[clean_key] = f"{v:.4f}"
+            else:
+                row[clean_key] = v
+        
+        rows.append(row)
+        
+    df_display = pd.DataFrame(rows)
+    styled_df = df_display.style.map(color_vals, subset = ["Cumulative Return","Annualized Return", "Max Drawdown"])
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    # per_ticker_df = pd.DataFrame(data["per_ticker_metrics"]).T.reset_index()
+    # per_ticker_df = per_ticker_df.rename(columns={"index": "ticker"})
+    # st.dataframe(per_ticker_df, use_container_width=True)
 
     return 
 

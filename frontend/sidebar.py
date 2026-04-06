@@ -11,7 +11,7 @@ ASSETS = [
 
 STRATEGIES = {
     "Mean Reversion (RSI + Bollinger)": "mean_reversion",
-    "Trend Follower (EMA + ADX)": "trend",
+    "Trend Follower (EMA + ADX)": "trend_follower",
     "Volatility Breakout (MACD + BB Width)": "macd"
 }
 
@@ -92,7 +92,7 @@ def render_sidebar():
 
         params["bb_window"] = st.sidebar.slider("Bollinger Window", 10, 50, 20)
 
-    elif strategy == "trend":
+    elif strategy == "trend_follower":
         params["ema_short"] = st.sidebar.slider("EMA Short", 5, 50, 20)
         params["ema_long"] = st.sidebar.slider("EMA Long", 20, 200, 50)
 
@@ -141,9 +141,15 @@ def render_market_intel_sidebar():
     st.sidebar.title("Market Intelligence")
     st.sidebar.markdown("Research a single ticker and get a quick fundamentals, news, and AI-generated summary snapshot.")
 
-    ticker = st.sidebar.text_input(
+    # ticker = st.sidebar.text_input(
+    #     "Ticker",
+    #     value="AAPL",
+    #     help="Enter one US equity ticker, for example AAPL, NVDA, or MSFT.",
+    # ).strip().upper()
+    ticker = st.sidebar.selectbox(
         "Ticker",
-        value="AAPL",
+        options=ASSETS,
+        index=0,
         help="Enter one US equity ticker, for example AAPL, NVDA, or MSFT.",
     ).strip().upper()
 
