@@ -82,3 +82,61 @@ class PortfolioBacktestResponse(pydantic.BaseModel):
     per_ticker_metrics: Dict[str, Dict[str, Any]]
     per_ticker_signal_rows: Dict[str, List[Dict[str, Any]]]
     portfolio_signal_rows: List[Dict[str, Any]]
+
+
+# ---------------------------------------------------------------------------
+# Agent models
+# ---------------------------------------------------------------------------
+
+class AgentBacktestRequest(pydantic.BaseModel):
+    ticker: str = pydantic.Field(..., example="AAPL")
+    start_date: str = pydantic.Field(..., example="2015-01-01")
+    end_date: str = pydantic.Field(..., example="2025-01-01")
+    initial_capital: float = pydantic.Field(10000.0, example=10000.0)
+    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
+        ..., example="mean_reversion"
+    )
+    strategy_params: Dict[str, Any] = pydantic.Field(
+        ..., example={"bb_window": 20, "bb_std": 2.0, "rsi_window": 14, "rsi_entry": 30, "rsi_exit": 70}
+    )
+    is_split: float = pydantic.Field(0.7, example=0.7, ge=0.3, le=0.9)
+
+
+class AgentBacktestResponse(pydantic.BaseModel):
+    is_metrics: Dict[str, Any]
+    oos_metrics: Dict[str, Any]
+    is_trades: List[Dict[str, Any]]
+    oos_trades: List[Dict[str, Any]]
+    is_end_date: str
+    oos_start_date: str
+    risk_report: Dict[str, Any]
+
+
+class OptimizeRequest(pydantic.BaseModel):
+    ticker: str = pydantic.Field(..., example="AAPL")
+    start_date: str = pydantic.Field(..., example="2015-01-01")
+    end_date: str = pydantic.Field(..., example="2025-01-01")
+    initial_capital: float = pydantic.Field(10000.0, example=10000.0)
+    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
+        ..., example="mean_reversion"
+    )
+    param_grid: Dict[str, List[Any]] = pydantic.Field(
+        ...,
+        example={
+            "bb_window": [15, 20, 25],
+            "bb_std": [1.5, 2.0, 2.5],
+            "rsi_window": [14],
+            "rsi_entry": [25, 30],
+            "rsi_exit": [70, 75],
+        },
+    )
+    is_split: float = pydantic.Field(0.7, example=0.7, ge=0.3, le=0.9)
+
+
+class OptimizeResponse(pydantic.BaseModel):
+    top_configs: List[Dict[str, Any]]
+    total_candidates: int
+    passed: int
+    skipped: int
+    errors: int
+
