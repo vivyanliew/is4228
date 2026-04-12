@@ -140,3 +140,20 @@ class OptimizeResponse(pydantic.BaseModel):
     skipped: int
     errors: int
 
+class MarketContextRequest(pydantic.BaseModel):
+    ticker: str = pydantic.Field(..., example="BTC-USD")
+    start_date: str = pydantic.Field(..., example="2022-01-01")
+    end_date: str = pydantic.Field(..., example="2024-12-31")
+
+
+class MarketContextResponse(pydantic.BaseModel):
+    ticker: str
+    start_date: str
+    end_date: str
+    regime: Literal["trending", "ranging"]
+    trend_direction: Literal["up", "down", "sideways"]
+    sma_200_slope: float
+    realized_vol_30d: float
+    correlation_to_spy: float
+    strategy_bias: Literal["momentum", "mean_reversion", "neutral"]
+    reasoning: str

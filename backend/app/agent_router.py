@@ -3,11 +3,14 @@ from fastapi import APIRouter, HTTPException
 from app.agents.backtest_agent import BacktestAgent
 from app.agents.risk_agent import RiskAgent
 from app.agents.optimization_agent import OptimizationAgent
+from app.agents.market_context_agent import MarketContextAgent
 from app.models import (
     AgentBacktestRequest,
     AgentBacktestResponse,
     OptimizeRequest,
     OptimizeResponse,
+    MarketContextRequest,
+    MarketContextResponse,
 )
 
 agent_router = APIRouter(prefix="/agent", tags=["agents"])
@@ -70,6 +73,27 @@ def agent_optimize(request: OptimizeRequest):
             is_split=request.is_split,
         )
         return OptimizeResponse(**result)
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@agent_router.post("/market-context", response_model=MarketContextResponse)
+def agent_market_context(request: MarketContextRequest):
+    """
+    Computes market regime context for a ticker over a date range.
+    Returns regime classification, volatility, SPY correlation,
+    and a recommended strategy bias for strategy generation.
+    """
+    try:
+        result = MarketContextAgent().run(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+        )
+        return MarketContextResponse(**result)
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
