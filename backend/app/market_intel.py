@@ -12,10 +12,13 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
-co = cohere.Client(COHERE_API_KEY)
+co = cohere.Client(COHERE_API_KEY) if COHERE_API_KEY else None
 
 #llm summarisation
 def summarise_with_cohere(news_articles, ticker, revenue, eps):
+    if co is None:
+        return "AI summary unavailable because COHERE_API_KEY is not configured."
+
     news_text = "\n".join([f"- {a['title']}" for a in news_articles])
 
     if not news_text.strip():
@@ -27,12 +30,14 @@ def summarise_with_cohere(news_articles, ticker, revenue, eps):
         "Summarise this in 2-3 sentences."
     )
 
-    response = co.chat(   
-        model="command-a-03-2025", 
-        message=prompt,
-    )
-
-    return response.text.strip()
+    try:
+        response = co.chat(
+            model="command-a-03-2025",
+            message=prompt,
+        )
+        return response.text.strip()
+    except Exception as exc:
+        return f"AI summary unavailable: {exc}"
 
 def get_market_intel(ticker: str):
     try:
@@ -52,8 +57,14 @@ def get_market_intel(ticker: str):
             "to": end.strftime("%Y-%m-%d"),
             "token": FINNHUB_API_KEY
         }
-        res = requests.get(url, params=params)
-        articles = res.json()
+        articles = []
+        if FINNHUB_API_KEY:
+            res = requests.get(url, params=params, timeout=20)
+            parsed = res.json()
+            if isinstance(parsed, list):
+                articles = parsed
+            else:
+                articles = []
 
         news = []
         for article in articles[:5]:

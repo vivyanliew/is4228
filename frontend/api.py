@@ -1,10 +1,33 @@
+BASE_API_URL = "http://127.0.0.1:8000"
+BASE_BACKTEST_URL = f"{BASE_API_URL}/backtest"
+MARKET_INTEL_URL = f"{BASE_API_URL}/market-intel"
+STRATEGY_GENERATION_URL = f"{BASE_API_URL}/strategy-generation/run"
+
+
+def normalize_strategy_name(strategy: str) -> str:
+    aliases = {
+        "trend": "trend_follower",
+    }
+    return aliases.get(strategy, strategy)
+
+
+def get_backtest_endpoint(strategy: str, assets: list[str]) -> str:
+    normalized_strategy = normalize_strategy_name(strategy)
+    strategy_registry = {
+        "mean_reversion": f"{BASE_BACKTEST_URL}/run-portfolio",
+        "trend_follower": f"{BASE_BACKTEST_URL}/run-portfolio",
+        "macd": f"{BASE_BACKTEST_URL}/run-macd-multi",
+    }
+    return strategy_registry[normalized_strategy]
+
+
 def build_payload(config):
-    strategy = config["strategy"]
+    strategy = normalize_strategy_name(config["strategy"])
     params = config["params"]
 
     # Base payload
     payload = {
-        "tickers": config["assets"], #to change when we allow for more edits
+        "tickers": config["assets"],
         "start_date": str(config["start_date"]),
         "end_date": str(config["end_date"]),
         "initial_capital": params.get("initial_capital", 10000),

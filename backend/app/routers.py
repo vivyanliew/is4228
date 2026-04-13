@@ -10,7 +10,10 @@ from app.models import (
     BacktestResponse,
     PortfolioBacktestRequest,
     PortfolioBacktestResponse,
+    StrategyGenerationRequest,
+    StrategyGenerationResponse,
 )
+from app.agents.strategy_generation_agent import StrategyGenerationAgent
 from app.strategies.strategy_ema import run_strategy as run_ema_strategy
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
 from app.strategies.strategy_macd import run_strategy_multi_ticker as run_macd_multi_strategy
@@ -19,6 +22,7 @@ from app.portfolio_backtest import compute_portfolio_metrics
 from app.market_intel import get_market_intel
 
 router = APIRouter()
+strategy_generation_agent = StrategyGenerationAgent()
 
 
 def run_strategy_by_name(strategy_name: str, price_df, strategy_params: dict):
@@ -303,3 +307,42 @@ def get_market_intel_endpoint(ticker: str):
             status_code=400,
             detail=f"Error fetching data for {ticker}: {str(e)}"
         )
+
+
+@router.post("/strategy-generation/run", response_model=StrategyGenerationResponse)
+def run_strategy_generation(request: StrategyGenerationRequest):
+    try:
+        specs = strategy_generation_agent.generate(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            market_context=request.market_context,
+            max_candidates=request.max_candidates,
+            use_llm=request.use_llm,
+            allow_experimental=request.allow_experimental,
+        )
+
+        return StrategyGenerationResponse(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            market_context=request.market_context,
+            strategies=[
+                {
+                    "strategy_name": spec.strategy_name,
+                    "strategy_params": spec.strategy_params,
+                    "description": spec.description,
+                    "rationale": spec.rationale,
+                    "source": spec.source,
+                    "backtestable": spec.backtestable,
+                    "confidence": spec.confidence,
+                    "research_basis": spec.research_basis,
+                    "generated_code": spec.generated_code,
+                    "implementation_hint": spec.implementation_hint,
+                    "metadata": spec.metadata,
+                }
+                for spec in specs
+            ],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

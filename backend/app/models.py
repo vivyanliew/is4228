@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import pydantic
 
@@ -82,3 +82,35 @@ class PortfolioBacktestResponse(pydantic.BaseModel):
     per_ticker_metrics: Dict[str, Dict[str, Any]]
     per_ticker_signal_rows: Dict[str, List[Dict[str, Any]]]
     portfolio_signal_rows: List[Dict[str, Any]]
+
+
+class StrategyGenerationRequest(pydantic.BaseModel):
+    ticker: str = pydantic.Field(..., example="BTC-USD")
+    start_date: str = pydantic.Field(..., example="2022-01-01")
+    end_date: str = pydantic.Field(..., example="2024-12-31")
+    market_context: Dict[str, Any] = pydantic.Field(default_factory=dict)
+    max_candidates: int = pydantic.Field(3, ge=1, le=10)
+    use_llm: bool = pydantic.Field(True)
+    allow_experimental: bool = pydantic.Field(True)
+
+
+class StrategySpecResponse(pydantic.BaseModel):
+    strategy_name: str
+    strategy_params: Dict[str, Any]
+    description: str
+    rationale: Optional[str] = None
+    source: str
+    backtestable: bool
+    confidence: float
+    research_basis: List[str] = pydantic.Field(default_factory=list)
+    generated_code: Optional[str] = None
+    implementation_hint: Optional[str] = None
+    metadata: Dict[str, Any] = pydantic.Field(default_factory=dict)
+
+
+class StrategyGenerationResponse(pydantic.BaseModel):
+    ticker: str
+    start_date: str
+    end_date: str
+    market_context: Dict[str, Any]
+    strategies: List[StrategySpecResponse]
