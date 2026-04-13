@@ -3,6 +3,7 @@ import requests
 import streamlit as st
 
 from api import (
+    AGENT_MARKET_CONTEXT_URL,
     MARKET_INTEL_URL,
     STRATEGY_GENERATION_URL,
     build_payload,
@@ -34,6 +35,8 @@ if "market_intel_result" not in st.session_state:
     st.session_state["market_intel_result"] = None
 if "strategy_generation_result" not in st.session_state:
     st.session_state["strategy_generation_result"] = None
+if "strategy_generation_market_context" not in st.session_state:
+    st.session_state["strategy_generation_market_context"] = None
 if "strategy_generation_show_raw" not in st.session_state:
     st.session_state["strategy_generation_show_raw"] = False
 if "selected_tier" not in st.session_state:
@@ -329,7 +332,7 @@ def render_backtester_tab(active_tier: str):
 
 def render_strategy_generation_tab(active_tier: str):
     st.subheader("Strategy Generation")
-    st.caption("Generate candidate strategies from market context before optimization or backtesting.")
+    st.caption("Market context is analyzed first, then strategy ideas are generated from that context.")
 
     if not tier_enabled(active_tier, "Advanced"):
         st.info("Available only on the Advanced tier. Switch the tier at the top right to access strategy generation.")
@@ -349,14 +352,6 @@ def render_strategy_generation_tab(active_tier: str):
         with row4:
             end_date = st.date_input("End Date", value=pd.to_datetime("2024-12-31"), key="gen_end")
 
-        row5, row6, row7 = st.columns(3)
-        with row5:
-            strategy_bias = st.selectbox("Strategy Bias", options=["momentum", "mean_reversion", "neutral"])
-        with row6:
-            trend_direction = st.selectbox("Trend Direction", options=["up", "down", "sideways"])
-        with row7:
-            volatility_bucket = st.selectbox("Volatility", options=["low", "medium", "high"], index=1)
-
         row8, row9 = st.columns([1, 1])
         with row8:
             use_llm = st.toggle("Use Cohere if available", value=True)
@@ -367,20 +362,38 @@ def render_strategy_generation_tab(active_tier: str):
         submitted = st.button("Generate Strategies", use_container_width=True, key="generate_strategies_button")
 
     if submitted:
-        payload = {
-            "ticker": ticker,
-            "start_date": str(start_date),
-            "end_date": str(end_date),
-            "market_context": {
-                "strategy_bias": strategy_bias,
-                "trend_direction": trend_direction,
-                "volatility_bucket": volatility_bucket,
-            },
-            "max_candidates": max_candidates,
-            "use_llm": use_llm,
-            "allow_experimental": True,
-        }
         try:
+            market_context_payload = {
+                "ticker": ticker,
+                "start_date": str(start_date),
+                "end_date": str(end_date),
+            }
+            with st.spinner("Analyzing market context..."):
+                context_response = requests.post(
+                    AGENT_MARKET_CONTEXT_URL,
+                    json=market_context_payload,
+                    timeout=60,
+                )
+            if context_response.status_code != 200:
+                st.error(f"Market context API error: {context_response.status_code}")
+                try:
+                    st.json(context_response.json())
+                except Exception:
+                    st.write(context_response.text)
+                return
+
+            market_context = context_response.json()
+            st.session_state["strategy_generation_market_context"] = market_context
+
+            payload = {
+                "ticker": ticker,
+                "start_date": str(start_date),
+                "end_date": str(end_date),
+                "market_context": market_context,
+                "max_candidates": max_candidates,
+                "use_llm": use_llm,
+                "allow_experimental": True,
+            }
             with st.spinner("Generating strategy candidates..."):
                 response = requests.post(STRATEGY_GENERATION_URL, json=payload, timeout=60)
             if response.status_code != 200:
@@ -411,14 +424,27 @@ def render_strategy_generation_tab(active_tier: str):
     with meta4:
         st.metric("Candidates", len(data.get("strategies", [])))
 
-    context = data.get("market_context", {})
-    bias_col, trend_col, vol_col = st.columns(3)
-    with bias_col:
-        st.info(f"Bias: {context.get('strategy_bias', 'n/a')}")
-    with trend_col:
-        st.info(f"Trend: {context.get('trend_direction', 'n/a')}")
-    with vol_col:
-        st.info(f"Volatility: {context.get('volatility_bucket', 'n/a')}")
+    context = st.session_state.get("strategy_generation_market_context") or data.get("market_context", {})
+    if context:
+        st.subheader("Market Context")
+        st.caption("This market-context analysis is used to guide the generated strategy ideas.")
+
+        context_col1, context_col2, context_col3 = st.columns(3)
+        with context_col1:
+            st.metric("Market Regime", str(context.get("regime", "n/a")).replace("_", " ").title())
+            st.metric("Strategy Bias", str(context.get("strategy_bias", "n/a")).replace("_", " ").title())
+        with context_col2:
+            st.metric("Trend Direction", str(context.get("trend_direction", "n/a")).replace("_", " ").title())
+            st.metric("30D Realized Vol", context.get("realized_vol_30d", "n/a"))
+        with context_col3:
+            st.metric("SPY Correlation", context.get("correlation_to_spy", "n/a"))
+            st.metric("SMA 200 Slope", context.get("sma_200_slope", "n/a"))
+
+        reasoning = context.get("reasoning", "")
+        if reasoning:
+            with st.container(border=True):
+                st.markdown("**Why this market context was identified**")
+                st.write(reasoning)
 
     st.subheader("Generated Candidates")
     for index, strategy in enumerate(data.get("strategies", []), start=1):
