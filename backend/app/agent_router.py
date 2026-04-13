@@ -4,6 +4,7 @@ from app.agents.backtest_agent import BacktestAgent
 from app.agents.risk_agent import RiskAgent
 from app.agents.optimization_agent import OptimizationAgent
 from app.agents.market_context_agent import MarketContextAgent
+from app.agents.report_agent import ReportAgent
 from app.models import (
     AgentBacktestRequest,
     AgentBacktestResponse,
@@ -11,6 +12,8 @@ from app.models import (
     OptimizeResponse,
     MarketContextRequest,
     MarketContextResponse,
+    ReportRequest,
+    ReportResponse,
 )
 
 agent_router = APIRouter(prefix="/agent", tags=["agents"])
@@ -94,6 +97,31 @@ def agent_market_context(request: MarketContextRequest):
             end_date=request.end_date,
         )
         return MarketContextResponse(**result)
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    
+
+@agent_router.post("/report", response_model=ReportResponse)
+def agent_report(request: ReportRequest):
+    """
+    Collects data from all Agent.
+    Generates a comprehensive report for a given ticker and date range.
+    """
+    try:
+        result = ReportAgent().run(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            market_context=request.market_context,
+            strategy_specs=request.strategy_specs,
+            backtest_results=request.backtest_results,
+            risk_results=request.risk_results,
+            optimization_results=request.optimization_results,        
+        )
+        return result
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

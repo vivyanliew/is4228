@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Tuple, Union
 
 import pydantic
 
@@ -157,3 +157,43 @@ class MarketContextResponse(pydantic.BaseModel):
     correlation_to_spy: float
     strategy_bias: Literal["momentum", "mean_reversion", "neutral"]
     reasoning: str
+
+
+class ReportRequest(pydantic.BaseModel):
+    ticker: str = pydantic.Field(..., example="BTC-USD")
+    start_date: str = pydantic.Field(..., example="2022-01-01")
+    end_date: str = pydantic.Field(..., example="2024-12-31")
+    market_context: Dict[str, Any] = pydantic.Field(
+        ...,
+        description="MarketContextAgent output"
+    )
+    strategy_specs: List[Dict[str, Any]] = pydantic.Field(
+        ...,
+        description="List of StrategySpec dicts from StrategyGenerationAgent"
+    )
+    backtest_results: Dict[str, Any] = pydantic.Field(
+        ...,
+        description="BacktestAgent output: is_metrics, oos_metrics, split_date, trade lists"
+    )
+    risk_results: Dict[str, Any] = pydantic.Field(
+        ...,
+        description="RiskAgent output: overfitting_score, overfitting_label, calmar_ratio_oos, flags"
+    )
+    optimization_results: List[Dict[str, Any]] = pydantic.Field(
+        ...,
+        description="OptimizationAgent top-N configs, sorted best-first"
+    )
+
+class ReportResponse(pydantic.BaseModel):
+    ticker: str
+    start_date: str
+    end_date: str
+    markdown: str                       # full synthesised report
+    summary: str                        # executive summary paragraph only
+    warnings: list[str]                 # ⚠️ bullets extracted from Risk Warnings section
+    sections: dict[str, str]            # keyed sub-sections for Streamlit expanders
+    # Expected keys:
+    #   "Market Context", "Strategy Overview", "Backtest Performance",
+    #   "Risk Analysis", "Parameter Recommendations", "Risk Warnings", "Conclusion"
+    synthesis_source: Literal["cohere", "rule_based"]
+    # Tells the caller whether the LLM was used or the fallback fired
