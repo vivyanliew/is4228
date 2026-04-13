@@ -66,7 +66,7 @@ def render_metrics_mean_reversion(results):
             rows.append(row)
         
         df_display = pd.DataFrame(rows)
-        styled_df = df_display.style.map(color_vals, subset = ["Cumulative Return","Annualized Return","Max Drawdown"])
+        styled_df = df_display.style.applymap(color_vals, subset = ["Cumulative Return","Annualized Return","Max Drawdown"])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 def render_metrics_trend(results):
@@ -120,7 +120,7 @@ def render_metrics_trend(results):
         rows.append(row)
         
     df_display = pd.DataFrame(rows)
-    styled_df = df_display.style.map(color_vals, subset = ["Cumulative Return","Annualized Return", "Max Drawdown"])
+    styled_df = df_display.style.applymap(color_vals, subset = ["Cumulative Return","Annualized Return", "Max Drawdown"])
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
     # per_ticker_df = pd.DataFrame(data["per_ticker_metrics"]).T.reset_index()
     # per_ticker_df = per_ticker_df.rename(columns={"index": "ticker"})

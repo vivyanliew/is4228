@@ -25,74 +25,63 @@ STRATEGY_REGISTRY = {
     },
 }
 
-# -------------------------
 # Sidebar Inputs
-# -------------------------
 params = render_sidebar()
 
 if params["run"]:
     st.session_state["submitted_params"] = params
-    # Clear previous backtest results when new params are submitted
-    if "backtest_data" in st.session_state:
-        del st.session_state["backtest_data"]
-    if "backtest_strategy" in st.session_state:
-        del st.session_state["backtest_strategy"]
 
+    # Clear old results
+    st.session_state.pop("backtest_data", None)
+    st.session_state.pop("backtest_strategy", None)
+
+    strategy_name = params["strategy"]
+    strategy = STRATEGY_REGISTRY[strategy_name]
+    tickers = params["assets"]
+    tier = params["tier"]
+
+    payload = build_payload(params)
+
+    endpoint = strategy["endpoint"]
+
+    if not tickers:
+        st.warning("Please select at least one ticker.")
+    else:
+        try:
+            with st.spinner("Running backtest..."):
+                response = requests.post(
+                    endpoint,
+                    json=payload,
+                    timeout=60,
+                )
+
+            if response.status_code != 200:
+                st.error(f"API error: {response.status_code}")
+                try:
+                    st.json(response.json())
+                except Exception:
+                    st.write(response.text)
+            else:
+                data = response.json()
+                st.session_state["backtest_data"] = data
+                st.session_state["backtest_strategy"] = strategy_name
+                st.success("Backtest completed!")
+
+        except requests.RequestException as exc:
+            st.error(
+                "Could not reach backend API. "
+                f"Details: {exc}"
+            )
 active_params = st.session_state["submitted_params"]
 
 if active_params is None:
-    st.info("Configure your strategy in the sidebar and click 'Run Backtest'.")
-else:
-    st.success("Backtest configuration captured.")
-
-    payload = build_payload(active_params)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Configuration")
-        st.json(payload)
-
-    with col2:
-        st.subheader("Summary")
-        st.write(f"**Tier:** {active_params['tier']}")
-        st.write(f"**Strategy:** {active_params['strategy']}")
-        st.write(f"**Assets:** {active_params['assets']}")
-
-    strategy_name = active_params["strategy"]
-    strategy = STRATEGY_REGISTRY[strategy_name]
-    tickers = active_params["assets"]
-
-    if st.button("Run Portfolio Backtest"):
-        if not tickers:
-            st.warning("Please select at least one ticker.")
-        else:
-            try:
-                with st.spinner("Running portfolio backtest..."):
-                    response = requests.post(
-                        strategy["endpoint"],
-                        json=payload,
-                        timeout=60,
-                    )
-
-                if response.status_code != 200:
-                    st.error(f"API error: {response.status_code}")
-                    try:
-                        st.json(response.json())
-                    except Exception:
-                        st.write(response.text)
-                else:
-                    data = response.json()
-                    st.session_state["backtest_data"] = data
-                    st.session_state["backtest_strategy"] = strategy_name
-            except requests.RequestException as exc:
-                st.error(
-                    "Could not reach the backend API at http://127.0.0.1:8000. "
-                    f"Details: {exc}"
-                )
+   st.info("Configure your strategy in the sidebar and click 'Run'.")
 
 # Render results if available
 if "backtest_data" in st.session_state:
+    st.divider()
+    st.header("Backtest Results")
+
     data = st.session_state["backtest_data"]
     strategy_name = st.session_state["backtest_strategy"]
     
