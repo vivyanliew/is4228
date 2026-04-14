@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import cohere
 import os
 from pathlib import Path
+from functools import lru_cache
 import pandas as pd
 import numpy as np
 
@@ -16,23 +17,29 @@ FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
 co = cohere.Client(COHERE_API_KEY) if COHERE_API_KEY else None
 
+@lru_cache(maxsize=64)
 def get_market_context(ticker: str, start_date: str, end_date: str) -> dict:
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
     warmup_start = (start_dt - timedelta(days=300)).strftime("%Y-%m-%d")
 
-    asset_df = yf.download(ticker, start=warmup_start, end=end_date, auto_adjust=True, progress=False)
-    spy_df = yf.download("SPY", start=warmup_start, end=end_date, auto_adjust=True, progress=False)
+    combined_df = yf.download(
+        [ticker, "SPY"],
+        start=warmup_start,
+        end=end_date,
+        auto_adjust=True,
+        progress=False,
+    )
 
-    if asset_df.empty:
+    if combined_df.empty:
         raise ValueError(f"No data for {ticker}")
 
-    asset_close = asset_df["Close"]
-    spy_close = spy_df["Close"]
-
-    if isinstance(asset_close, pd.DataFrame):
-        asset_close = asset_close.iloc[:, 0]
-    if isinstance(spy_close, pd.DataFrame):
-        spy_close = spy_close.iloc[:, 0]
+    close_df = combined_df["Close"] if "Close" in combined_df else combined_df
+    if isinstance(close_df, pd.Series):
+        asset_close = close_df.dropna()
+        spy_close = pd.Series(dtype=float)
+    else:
+        asset_close = close_df.get(ticker, pd.Series(dtype=float))
+        spy_close = close_df.get("SPY", pd.Series(dtype=float))
 
     asset_close = asset_close.dropna()
     spy_close = spy_close.dropna()

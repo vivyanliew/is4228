@@ -3,6 +3,7 @@ import requests
 import streamlit as st
 
 from api import (
+    AGENT_BACKTEST_URL,
     AGENT_MARKET_CONTEXT_URL,
     MARKET_INTEL_URL,
     STRATEGY_GENERATION_URL,
@@ -37,6 +38,8 @@ if "strategy_generation_result" not in st.session_state:
     st.session_state["strategy_generation_result"] = None
 if "strategy_generation_market_context" not in st.session_state:
     st.session_state["strategy_generation_market_context"] = None
+if "strategy_generated_backtest_result" not in st.session_state:
+    st.session_state["strategy_generated_backtest_result"] = None
 if "strategy_generation_show_raw" not in st.session_state:
     st.session_state["strategy_generation_show_raw"] = False
 if "selected_tier" not in st.session_state:
@@ -306,6 +309,11 @@ def render_backtester_tab(active_tier: str):
         return
 
     st.divider()
+    if strategy == "macd":
+        render_metrics_breakout(data)
+        render_charts_breakout(data)
+        return
+
     if "portfolio_metrics" not in data:
         st.subheader("Metrics")
         st.json(data.get("metrics", {}))
@@ -325,9 +333,6 @@ def render_backtester_tab(active_tier: str):
     elif strategy == "trend_follower":
         render_metrics_trend(data)
         render_charts_trend(data)
-    else:
-        render_metrics_breakout(data)
-        render_charts_breakout(data)
 
 
 def render_strategy_generation_tab(active_tier: str):
@@ -404,6 +409,7 @@ def render_strategy_generation_tab(active_tier: str):
                     st.write(response.text)
             else:
                 st.session_state["strategy_generation_result"] = response.json()
+                st.session_state["strategy_generated_backtest_result"] = None
         except requests.RequestException as exc:
             st.error(f"Could not reach backend API. Details: {exc}")
 
@@ -427,7 +433,7 @@ def render_strategy_generation_tab(active_tier: str):
     context = st.session_state.get("strategy_generation_market_context") or data.get("market_context", {})
     if context:
         st.subheader("Market Context")
-        st.caption("This market-context analysis is used to guide the generated strategy ideas.")
+        st.caption("This context is used to guide the generated strategy ideas.")
 
         context_col1, context_col2, context_col3 = st.columns(3)
         with context_col1:
@@ -442,61 +448,150 @@ def render_strategy_generation_tab(active_tier: str):
 
         reasoning = context.get("reasoning", "")
         if reasoning:
-            with st.container(border=True):
-                st.markdown("**Why this market context was identified**")
+            with st.expander("Why this context was identified"):
                 st.write(reasoning)
 
-    st.subheader("Generated Candidates")
-    for index, strategy in enumerate(data.get("strategies", []), start=1):
-        title = strategy["strategy_name"].replace("_", " ").title()
-        badge = strategy.get("source", "unknown")
-        with st.expander(f"{index}. {title} [{badge}]", expanded=index == 1):
-            top_left, top_right, top_far = st.columns([2, 1, 1])
-            with top_left:
-                st.write(strategy.get("description", ""))
-            with top_right:
-                st.caption(f"Source: {badge}")
-            with top_far:
-                if strategy.get("backtestable", False):
-                    st.success("Backtestable Now")
-                else:
-                    st.warning("Experimental")
-            if strategy.get("rationale"):
-                st.caption(strategy["rationale"])
+    generated_strategies = data.get("strategies", [])
+    st.subheader("Generated Strategies")
+    if not generated_strategies:
+        st.warning("No strategies were generated for this setup.")
+        return
 
-            info1, info2 = st.columns(2)
-            with info1:
-                st.metric("Confidence", f"{float(strategy.get('confidence', 0)):.2f}")
-            with info2:
-                research_basis = strategy.get("research_basis", [])
-                st.caption("Research Basis")
-                if research_basis:
-                    st.write(", ".join(research_basis))
-                else:
-                    st.write("None attached")
+    backtestable_indices = [
+        idx for idx, strategy in enumerate(generated_strategies) if strategy.get("backtestable", False)
+    ]
 
-            params_df = pd.DataFrame(
-                [
-                    {"Parameter": key, "Value": value}
-                    for key, value in strategy.get("strategy_params", {}).items()
-                ]
-            )
-            if not params_df.empty:
+    radio_options = backtestable_indices or list(range(len(generated_strategies)))
+    selected_index = st.radio(
+        "Choose a strategy",
+        options=radio_options,
+        format_func=lambda idx: (
+            f"{generated_strategies[idx]['strategy_name'].replace('_', ' ').title()} "
+            f"| confidence {float(generated_strategies[idx].get('confidence', 0)):.2f}"
+        ),
+        key="selected_generated_strategy",
+        horizontal=False,
+    )
+    selected_strategy = generated_strategies[selected_index]
+    selected_backtestable = selected_strategy.get("backtestable", False)
+    research_basis = selected_strategy.get("research_basis", [])
+
+    with st.container(border=True):
+        st.markdown(f"**{selected_strategy['strategy_name'].replace('_', ' ').title()}**")
+        st.caption(selected_strategy.get("description", "No description available."))
+
+        summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+        with summary_col1:
+            st.metric("Confidence", f"{float(selected_strategy.get('confidence', 0)):.2f}")
+        with summary_col2:
+            st.metric("Source", str(selected_strategy.get("source", "unknown")).replace("_", " ").title())
+        with summary_col3:
+            st.metric("Research Links", len(research_basis))
+        with summary_col4:
+            st.metric("Status", "Ready" if selected_backtestable else "Idea")
+
+        if selected_strategy.get("rationale"):
+            st.write(f"**Why it fits:** {selected_strategy['rationale']}")
+
+        params_df = pd.DataFrame(
+            [
+                {"Parameter": key, "Value": value}
+                for key, value in selected_strategy.get("strategy_params", {}).items()
+            ]
+        )
+        if not params_df.empty:
+            with st.expander("View Parameters"):
                 st.dataframe(params_df, use_container_width=True, hide_index=True)
 
-            if strategy.get("metadata"):
-                metadata_items = [
-                    f"`{key}`: {value}"
-                    for key, value in strategy["metadata"].items()
-                ]
-                if metadata_items:
-                    st.markdown(" | ".join(metadata_items))
+        if research_basis:
+            with st.expander("Research Basis"):
+                st.write(", ".join(research_basis))
 
-            if strategy.get("implementation_hint"):
-                st.info(strategy["implementation_hint"])
+        if not selected_backtestable:
+            st.info(selected_strategy.get("implementation_hint", "This strategy is not ready for backtesting yet."))
 
-            if strategy.get("generated_code"):
-                st.code(strategy["generated_code"], language="python")
+    action_box = st.container(border=True)
+    with action_box:
+        st.subheader("Backtest Selection")
+        action_col1, action_col2 = st.columns([1, 1])
+        with action_col1:
+            generated_initial_capital = st.number_input(
+                "Initial Capital",
+                min_value=1000,
+                value=10000,
+                step=1000,
+                key="generated_strategy_initial_capital",
+            )
+        with action_col2:
+            st.write("")
+            st.write("")
+            run_generated_backtest = st.button(
+                "Run Backtest",
+                use_container_width=True,
+                key="run_generated_strategy_backtest",
+                disabled=not selected_backtestable,
+            )
+
+        if not selected_backtestable:
+            st.caption("Choose a backtestable strategy to enable the backtest run.")
+
+    if run_generated_backtest and selected_backtestable:
+        try:
+            payload = {
+                "ticker": data["ticker"],
+                "start_date": data["start_date"],
+                "end_date": data["end_date"],
+                "initial_capital": float(generated_initial_capital),
+                "strategy_name": selected_strategy["strategy_name"],
+                "strategy_params": selected_strategy["strategy_params"],
+                "is_split": 0.7,
+            }
+            with st.spinner("Running backtest..."):
+                backtest_response = requests.post(AGENT_BACKTEST_URL, json=payload, timeout=120)
+            if backtest_response.status_code != 200:
+                st.error(f"Backtest API error: {backtest_response.status_code}")
+                try:
+                    st.json(backtest_response.json())
+                except Exception:
+                    st.write(backtest_response.text)
+            else:
+                st.session_state["strategy_generated_backtest_result"] = {
+                    "strategy": selected_strategy,
+                    "result": backtest_response.json(),
+                }
+        except requests.RequestException as exc:
+            st.error(f"Could not reach backend API. Details: {exc}")
+
+    pipeline_result = st.session_state.get("strategy_generated_backtest_result")
+    if pipeline_result and pipeline_result.get("strategy", {}).get("strategy_name") == selected_strategy["strategy_name"]:
+        backtest_result = pipeline_result["result"]
+        st.divider()
+        st.subheader("Backtest Results")
+
+        metric1, metric2, metric3 = st.columns(3)
+        with metric1:
+            st.metric("OOS Sharpe", backtest_result["oos_metrics"].get("sharpe_ratio"))
+        with metric2:
+            st.metric("OOS Return %", backtest_result["oos_metrics"].get("cumulative_return_pct"))
+        with metric3:
+            st.metric("Risk Label", backtest_result["risk_report"].get("overfitting_label"))
+
+        split_col1, split_col2 = st.columns(2)
+        with split_col1:
+            st.caption(f"In-sample end: {backtest_result.get('is_end_date', 'n/a')}")
+        with split_col2:
+            st.caption(f"Out-of-sample start: {backtest_result.get('oos_start_date', 'n/a')}")
+
+        result_col1, result_col2 = st.columns(2)
+        with result_col1:
+            st.write("In-Sample")
+            st.json(backtest_result.get("is_metrics", {}))
+        with result_col2:
+            st.write("Out-of-Sample")
+            st.json(backtest_result.get("oos_metrics", {}))
+
+        with st.expander("Risk Report"):
+            st.json(backtest_result.get("risk_report", {}))
 
     if st.session_state["strategy_generation_show_raw"]:
         st.subheader("Raw API Response")
@@ -506,15 +601,15 @@ def render_strategy_generation_tab(active_tier: str):
 render_header()
 active_tier = st.session_state["selected_tier"]
 
-backtest_tab, market_tab, strategy_tab = st.tabs(
-    ["Backtester", "Market Intelligence", "Strategy Generation"]
-)
+available_tabs = [("Backtester", render_backtester_tab)]
+if tier_enabled(active_tier, "Pro"):
+    available_tabs.append(("Market Intelligence", render_market_intelligence_tab))
+if tier_enabled(active_tier, "Advanced"):
+    available_tabs.append(("Strategy Generation", render_strategy_generation_tab))
 
-with backtest_tab:
-    render_backtester_tab(active_tier)
+tab_labels = [label for label, _ in available_tabs]
+tab_containers = st.tabs(tab_labels)
 
-with market_tab:
-    render_market_intelligence_tab(active_tier)
-
-with strategy_tab:
-    render_strategy_generation_tab(active_tier)
+for tab_container, (_, render_fn) in zip(tab_containers, available_tabs):
+    with tab_container:
+        render_fn(active_tier)

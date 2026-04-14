@@ -3,6 +3,7 @@ BASE_BACKTEST_URL = f"{BASE_API_URL}/backtest"
 MARKET_INTEL_URL = f"{BASE_API_URL}/market-intel"
 STRATEGY_GENERATION_URL = f"{BASE_API_URL}/strategy-generation/run"
 AGENT_MARKET_CONTEXT_URL = f"{BASE_API_URL}/agent/market-context"
+AGENT_BACKTEST_URL = f"{BASE_API_URL}/agent/backtest"
 
 
 def normalize_strategy_name(strategy: str) -> str:

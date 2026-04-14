@@ -167,7 +167,7 @@ class StrategyGenerationAgent:
 
         if not selected:
             selected = papers[:3]
-        return selected[:6]
+        return selected[:3]
 
     def _preferred_families_for_bias(self, bias: str) -> set[str]:
         if bias == "momentum":
@@ -219,10 +219,7 @@ class StrategyGenerationAgent:
                     "id": entry.get("id"),
                     "strategy_family": entry.get("strategy_family", []),
                     "summary": entry.get("summary", ""),
-                    "key_findings": entry.get("key_findings", []),
-                    "works_best_when": entry.get("works_best_when", []),
-                    "fails_when": entry.get("fails_when", []),
-                    "backtestable": entry.get("backtestable", False),
+                    "key_findings": entry.get("key_findings", [])[:2],
                     "parameter_guidance": entry.get("parameter_guidance", {}),
                 }
             )
@@ -250,8 +247,7 @@ class StrategyGenerationAgent:
             '      "research_basis": ["paper_id_1"],\n'
             '      "backtestable": true,\n'
             '      "confidence": 0.0,\n'
-            '      "implementation_hint": "optional",\n'
-            '      "generated_code": "optional python code"\n'
+            '      "implementation_hint": "optional"\n'
             "    }\n"
             "  ]\n"
             "}\n"
@@ -265,7 +261,7 @@ class StrategyGenerationAgent:
             f"Market context: {json.dumps(market_context, default=str)}\n"
             f"Research evidence: {json.dumps(evidence, default=str)}\n"
             f"Generate up to {max_candidates} candidates.\n"
-            "Favor strategies that are consistent with the regime and evidence."
+            "Favor distinct strategies that are consistent with the regime and evidence. Keep the response concise."
         )
 
     def _parse_llm_output(self, raw_text: str) -> List[StrategySpec]:
