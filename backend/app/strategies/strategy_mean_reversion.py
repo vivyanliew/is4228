@@ -35,12 +35,12 @@ def run_strategy(price_df: pd.DataFrame, strategy_params: dict) -> pd.DataFrame:
     out["rsi"] = compute_rsi(out["Close"], window=rsi_window)
 
     out["buy_signal"] = (
-        (out["Close"] <= out["bb_lower"]) &
+        (out["Close"] <= out["bb_lower"]) |
         (out["rsi"] < rsi_entry)
     )
 
     out["sell_signal"] = (
-        (out["Close"] >= out["bb_upper"]) |
+        (out["Close"] >= out["bb_upper"]) &
         (out["rsi"] > rsi_exit)
     )
 
