@@ -37,7 +37,7 @@ def render_sidebar():
     st.sidebar.divider()
 
     # Asset Selection
-    st.sidebar.markdown("### 📈 Asset Selection")
+    st.sidebar.markdown("### Asset Selection")
 
     if tier == "free":
         asset = st.sidebar.selectbox("Select Asset", ASSETS)

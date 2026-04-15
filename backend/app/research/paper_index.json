@@ -1,0 +1,223 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-04-13",
+  "papers": [
+    {
+      "id": "krauss_2016_pairs_trading_review",
+      "title": "Statistical Arbitrage Pairs Trading Strategies: Review and Outlook",
+      "authors": [
+        "Christopher Krauss"
+      ],
+      "year": 2016,
+      "file": "papers/krauss_2016_pairs_trading_review.pdf",
+      "strategy_family": [
+        "mean_reversion"
+      ],
+      "source_type": "risk_validation",
+      "summary": "This survey reviews multiple approaches to pairs trading, a mean-reversion strategy exploiting temporary divergences between historically related securities. It highlights distance, cointegration, time-series, and stochastic control methods, evaluating their profitability, robustness, and limitations under market frictions. The paper synthesizes over 100 studies to assess when and why pairs trading works.",
+      "key_findings": [
+        "Pairs trading generates historically significant excess returns, but profitability declines when accounting for transaction costs and non-converging pairs.",
+        "Cointegration-based selection improves reliability of mean-reversion compared to simple distance or correlation metrics.",
+        "Profitability is linked to temporary mispricings driven by delayed information diffusion and market frictions."
+      ],
+      "parameter_guidance": {},
+      "works_best_when": [
+        "assets exhibit stable long-term relationships or cointegration",
+        "markets have slower information diffusion or temporary inefficiencies"
+      ],
+      "fails_when": [
+        "pairs do not converge or relationships are spurious",
+        "transaction costs and market frictions outweigh spread profits"
+      ],
+      "implementation_notes": [
+        "Maps directly to mean-reversion strategies using spread divergence and convergence signals",
+        "Cointegration testing can improve pair selection over simple distance-based methods",
+        "Threshold-based entry/exit rules (e.g., standard deviation bands) are commonly used for signal generation"
+      ],
+      "research_quality": "high",
+      "backtestable": true,
+      "citation": "Krauss (2016) Statistical Arbitrage Pairs Trading Strategies: Review and Outlook"
+    },
+    {
+      "id": "trend_following_template_001",
+      "title": "Template Entry: Trend Following With Moving Averages",
+      "authors": [
+        "Replace With Author Names"
+      ],
+      "year": 2000,
+      "file": "papers/example_trend_following.pdf",
+      "strategy_family": [
+        "trend_follower",
+        "macd"
+      ],
+      "source_type": "supported_live_strategy",
+      "summary": "Replace this with a short grounded summary of the paper's main claim about trend-following strategies.",
+      "key_findings": [
+        "Trend-following signals tend to work better in persistent directional regimes.",
+        "Sideways markets increase whipsaw risk.",
+        "Longer windows usually trade off responsiveness for stability."
+      ],
+      "parameter_guidance": {
+        "ema_fast": {
+          "typical_range": [
+            10,
+            30
+          ],
+          "default": 20,
+          "note": "Shorter lookbacks respond faster but may be noisier."
+        },
+        "ema_slow": {
+          "typical_range": [
+            40,
+            100
+          ],
+          "default": 50,
+          "note": "Longer slow windows reduce noise but may lag."
+        },
+        "adx_threshold": {
+          "typical_range": [
+            20,
+            30
+          ],
+          "default": 25,
+          "note": "Higher thresholds require stronger trend confirmation."
+        }
+      },
+      "works_best_when": [
+        "market regime is trending",
+        "trend direction is persistent",
+        "signal noise is moderate"
+      ],
+      "fails_when": [
+        "market is sideways",
+        "price frequently reverses",
+        "trend strength is weak"
+      ],
+      "implementation_notes": [
+        "Maps naturally to trend_follower and MACD family candidates."
+      ],
+      "research_quality": "medium",
+      "backtestable": true,
+      "citation": "Replace with your preferred citation format."
+    },
+    {
+      "id": "mean_reversion_template_001",
+      "title": "Template Entry: RSI and Bollinger Mean Reversion",
+      "authors": [
+        "Replace With Author Names"
+      ],
+      "year": 2000,
+      "file": "papers/example_mean_reversion.pdf",
+      "strategy_family": [
+        "mean_reversion"
+      ],
+      "source_type": "supported_live_strategy",
+      "summary": "Replace this with a short grounded summary of the paper's main claim about mean-reversion behavior.",
+      "key_findings": [
+        "Mean-reversion setups tend to perform better in ranging conditions.",
+        "Extreme signals may fail in strong trends.",
+        "Volatility bands can help frame reversal opportunities."
+      ],
+      "parameter_guidance": {
+        "bb_window": {
+          "typical_range": [
+            15,
+            30
+          ],
+          "default": 20,
+          "note": "Shorter windows react faster to recent volatility."
+        },
+        "bb_std": {
+          "typical_range": [
+            1.8,
+            2.5
+          ],
+          "default": 2.0,
+          "note": "Wider bands may reduce false entries in volatile markets."
+        },
+        "rsi_window": {
+          "typical_range": [
+            10,
+            20
+          ],
+          "default": 14,
+          "note": "Shorter RSI windows are more reactive."
+        },
+        "rsi_entry": {
+          "typical_range": [
+            20,
+            35
+          ],
+          "default": 30,
+          "note": "Lower thresholds require deeper oversold conditions."
+        },
+        "rsi_exit": {
+          "typical_range": [
+            60,
+            75
+          ],
+          "default": 70,
+          "note": "Higher exits hold longer but may give back more gains."
+        }
+      },
+      "works_best_when": [
+        "market regime is ranging",
+        "trend strength is weak",
+        "prices oscillate around a local mean"
+      ],
+      "fails_when": [
+        "market is strongly trending",
+        "breakouts continue instead of reverting"
+      ],
+      "implementation_notes": [
+        "Maps directly to the current mean_reversion strategy family."
+      ],
+      "research_quality": "medium",
+      "backtestable": true,
+      "citation": "Replace with your preferred citation format."
+    },
+    {
+      "id": "experimental_volume_filter_template_001",
+      "title": "Template Entry: Volume Filter for Signal Confirmation",
+      "authors": [
+        "Replace With Author Names"
+      ],
+      "year": 2000,
+      "file": "papers/example_volume_filter.pdf",
+      "strategy_family": [
+        "experimental"
+      ],
+      "source_type": "experimental_idea",
+      "summary": "Replace this with a short grounded summary of how volume may improve signal quality.",
+      "key_findings": [
+        "Volume can help confirm whether a move has broader participation.",
+        "Low-volume reversals may be less reliable.",
+        "Volume filters can reduce trade frequency while improving selectivity."
+      ],
+      "parameter_guidance": {
+        "volume_ma_window": {
+          "typical_range": [
+            10,
+            30
+          ],
+          "default": 20,
+          "note": "Used to compare current volume against a recent baseline."
+        }
+      },
+      "works_best_when": [
+        "signals need participation confirmation",
+        "false breakouts are common"
+      ],
+      "fails_when": [
+        "volume data is noisy or unreliable",
+        "volume is not informative for the asset"
+      ],
+      "implementation_notes": [
+        "Useful for future experimental strategies such as RSI plus volume filter or breakout plus volume confirmation."
+      ],
+      "research_quality": "low",
+      "backtestable": false,
+      "citation": "Replace with your preferred citation format."
+    }
+  ]
+}
