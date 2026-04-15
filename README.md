@@ -1,6 +1,6 @@
 # Browser-Based Strategy Research and Backtesting Tool
 
-A browser-based trading strategy research and backtesting tool for novice and intermediate retail traders, as well as student quants. The platform allows users to test rule-based technical strategies on historical market data, inspect trade signals, and evaluate performance before risking real capital.
+A browser-based trading strategy research and backtesting tool for novice and intermediate retail traders and student quants. It enables users to test rule-based technical strategies on historical data, visualize trade signals, and evaluate performance using standardized metrics—helping them validate ideas before risking real capital. An advanced agentic layer further supports automated strategy generation, optimization, and robust validation across different market conditions.
 
 ## Quick Setup Checklist
 
@@ -9,13 +9,15 @@ A browser-based trading strategy research and backtesting tool for novice and in
 3. **Install backend dependencies** from `requirements.txt`
 4. **Run the FastAPI server** and verify the local API is working
 5. **Open Swagger docs** to confirm the backend is ready for development
+6. **Run the Streamlit server** to load UI on local server 
 
 ## Key Capabilities
 
-- **Strategy testing**: Backtest rule-based technical strategies on historical data
-- **Multiple strategy types**: Mean Reversion, Trend Following, and Volatility Breakout
-- **Metrics output**: Inspect returns, trade logs, and risk metrics
+- **Rule-based backtesting**: Backtest across multiple strategies on historical data (Mean Reversion, Trend Following, Volatility Breakout)
+- **Agent-driven workflow**: Strategy generation, optimization, and risk analysis
+- **Metrics & Interactive visualizations:**: Inspect returns, trade logs, and risk metrics; price charts with trade signals, equity curves
 - **API-first backend**: Built with FastAPI for frontend integration
+- **Overfitting detection**: Robustness checks using IS vs OOS performance gaps
 - **Extensible design**: Structured to support more assets, indicators, and strategy parameters later
 
 ## Repository Layout
@@ -24,6 +26,8 @@ A browser-based trading strategy research and backtesting tool for novice and in
 - `backend/app/main.py` — FastAPI application entry point
 - `backend/app/models.py` — request and response models
 - `backend/requirements.txt` — backend Python dependencies
+- `frontend/app.py` — main file for UI 
+- `frontend/requirements.txt` — frontend Python dependencies
 
 ## Current Project Scope
 
@@ -31,9 +35,11 @@ For the current proof of concept, the team is focusing on:
 
 - Python backend
 - FastAPI server
-- historical data backtesting
+- Streamlit-based web interface for user interaction and visualization
 - API output for strategy metrics and signals
-- strategy implementation starting with Mean Reversion
+- Core performance metrics and basic risk indicators (Sharpe, drawdown, returns)
+- Support for a set of predefined strategies (Mean Reversion, Trend Following, Volatility Breakout)
+- Backtesting on historical price data for a selected set of assets (e.g., equities or crypto)
 
 ## Strategies
 
@@ -188,65 +194,6 @@ When you are done working, you can deactivate the virtual environment by running
 ```bash
 deactivate
 ```
-
-## Current Backend Files
-
-### `backend/requirements.txt`
-
-```txt
-fastapi
-uvicorn[standard]
-pandas
-numpy
-yfinance
-pydantic
-```
-
-### `backend/app/main.py`
-
-```python
-from fastapi import FastAPI
-
-app = FastAPI(title="Backtesting API")
-
-
-@app.get("/")
-def root():
-    return {"message": "Backend is running"}
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-## Development Workflow
-
-### Recommended Git Workflow
-
-Before starting work:
-
-```bash
-git pull origin main
-git checkout -b your-branch-name
-```
-
-After making changes:
-
-```bash
-git add .
-git commit -m "Describe your changes"
-git push origin your-branch-name
-```
-
-### Suggested Team Workflow
-
-1. Pull the latest version of `main`
-2. Set up the backend locally
-3. Confirm the server and docs page load successfully
-4. Work on feature branches instead of directly on `main`
-5. Open pull requests or send branches for review before merging
-
 
 ## Common Issues
 
