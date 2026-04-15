@@ -35,12 +35,12 @@ def run_strategy(price_df: pd.DataFrame, strategy_params: dict) -> pd.DataFrame:
     out["rsi"] = compute_rsi(out["Close"], window=rsi_window)
 
     out["buy_signal"] = (
-        (out["Close"] <= out["bb_lower"]) &
+        (out["Close"] <= out["bb_lower"]) |
         (out["rsi"] < rsi_entry)
     )
 
     out["sell_signal"] = (
-        (out["Close"] >= out["bb_upper"]) |
+        (out["Close"] >= out["bb_upper"]) &
         (out["rsi"] > rsi_exit)
     )
 
@@ -56,7 +56,16 @@ def run_strategy(price_df: pd.DataFrame, strategy_params: dict) -> pd.DataFrame:
         position.append(in_position)
 
     out["position"] = position
-    out["buy_marker"] = np.where(out["buy_signal"], out["Close"], np.nan)
-    out["sell_marker"] = np.where(out["sell_signal"], out["Close"], np.nan)
+    prev_position = out["position"].shift(1).fillna(0)
+    out["buy_marker"] = np.where(
+        (out["position"] == 1) & (prev_position == 0),
+        out["Close"],
+        np.nan,
+    )
+    out["sell_marker"] = np.where(
+        (out["position"] == 0) & (prev_position == 1),
+        out["Close"],
+        np.nan,
+    )
 
     return out
