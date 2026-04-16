@@ -4,6 +4,8 @@ MARKET_INTEL_URL = f"{BASE_API_URL}/market-intel"
 STRATEGY_GENERATION_URL = f"{BASE_API_URL}/strategy-generation/run"
 AGENT_MARKET_CONTEXT_URL = f"{BASE_API_URL}/agent/market-context"
 AGENT_BACKTEST_URL = f"{BASE_API_URL}/agent/backtest"
+RISK_ANALYSIS_URL = f"{BASE_BACKTEST_URL}/risk-analysis"
+AI_INSIGHTS_URL = f"{BASE_BACKTEST_URL}/ai-insights"
 
 
 def normalize_strategy_name(strategy: str) -> str:
@@ -18,7 +20,7 @@ def get_backtest_endpoint(strategy: str, assets: list[str]) -> str:
     strategy_registry = {
         "mean_reversion": f"{BASE_BACKTEST_URL}/run-portfolio",
         "trend_follower": f"{BASE_BACKTEST_URL}/run-portfolio",
-        "macd": f"{BASE_BACKTEST_URL}/run-macd-multi",
+        "macd": f"{BASE_BACKTEST_URL}/run-portfolio",
     }
     return strategy_registry[normalized_strategy]
 
@@ -40,11 +42,11 @@ def build_payload(config):
     # Strategy-specific mapping
     if strategy == "mean_reversion":
         payload["strategy_params"] = {
-            "rsi_window": 14,  # you can expose later
+            "rsi_window": 14,
             "rsi_entry": params["rsi_low"],
             "rsi_exit": params["rsi_high"],
             "bb_window": params["bb_window"],
-            "bb_std": 2.0  # default (or expose later)
+            "bb_std": params.get("bb_std", 2.0)
         }
 
     elif strategy == "trend_follower":
