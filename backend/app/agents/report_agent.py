@@ -29,7 +29,7 @@ class ReportAgent:
         start_date: str,
         end_date: str,
         market_context: dict,
-        strategy_specs: dict,
+        strategy_specs: list[dict],
         backtest_results: dict,
         risk_results: dict,
         optimization_results: list[dict],
@@ -48,7 +48,7 @@ class ReportAgent:
                 markdown = (
                     rule_based_report(
                         ticker, start_date, end_date, market_context,
-                        backtest_results, risk_results, optimization_results,
+                        strategy_specs, backtest_results, risk_results, optimization_results,
                     )
                     + f"\n\n> ⚠️ Cohere synthesis failed ({exc}); rule-based report shown."
                 )
@@ -56,7 +56,7 @@ class ReportAgent:
             # No API key — use rule-based fallback
             markdown = rule_based_report(
                 ticker, start_date, end_date, market_context,
-                backtest_results, risk_results, optimization_results,
+                strategy_specs, backtest_results, risk_results, optimization_results,
             )
     
         # Post-processing: extract sections, summary, and warnings from the markdown

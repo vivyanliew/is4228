@@ -17,13 +17,16 @@ class OptimizationAgent:
 
     Composite score = OOS_Sharpe * (1 + max(Calmar_OOS, 0)) / (1 + |OOS_MaxDD| / 100)
 
-    Candidates are skipped (not included in top-N) if:
-      - OOS trade count < 10
-      - overfitting_score >= 2
+    Candidates are skipped from the strict shortlist if:
+      - OOS trade count < 5
+      - overfitting_score >= 3
+
+    If no candidate passes the strict shortlist, the optimizer falls back to the
+    best trade-producing candidates so the user still gets actionable output.
     """
 
-    MIN_OOS_TRADES_OPTIMIZE = 10
-    MAX_OVERFITTING_SCORE = 2
+    MIN_OOS_TRADES_OPTIMIZE = 5
+    MAX_OVERFITTING_SCORE = 3
 
     def run(
         self,
@@ -45,7 +48,8 @@ class OptimizationAgent:
         backtest_agent = BacktestAgent()
         risk_agent = RiskAgent()
 
-        results = []
+        strict_results = []
+        relaxed_results = []
         skipped = 0
         error_count = 0
 
@@ -82,23 +86,49 @@ class OptimizationAgent:
                     4,
                 )
 
-                results.append({
+                candidate_result = {
                     "params": params,
                     "is_metrics": backtest_result["is"]["metrics"],
                     "oos_metrics": oos_metrics,
                     "risk_report": risk_report,
                     "score": score,
-                })
+                }
+
+                if oos_trade_count >= 1:
+                    relaxed_results.append(candidate_result)
+
+                if oos_trade_count < self.MIN_OOS_TRADES_OPTIMIZE:
+                    skipped += 1
+                    continue
+                if overfitting_score >= self.MAX_OVERFITTING_SCORE:
+                    skipped += 1
+                    continue
+
+                strict_results.append(candidate_result)
 
             except Exception as e:
                 error_count += 1
 
-        results.sort(key=lambda x: x["score"], reverse=True)
+        strict_results.sort(key=lambda x: x["score"], reverse=True)
+        relaxed_results.sort(key=lambda x: x["score"], reverse=True)
+
+        fallback_used = False
+        fallback_reason = None
+        selected_results = strict_results
+        if not selected_results and relaxed_results:
+            fallback_used = True
+            fallback_reason = (
+                "No parameter set passed the strict optimization filters. "
+                "Showing the best configs that still produced out-of-sample trades."
+            )
+            selected_results = relaxed_results
 
         return {
-            "top_configs": results[:top_n],
+            "top_configs": selected_results[:top_n],
             "total_candidates": len(candidates),
-            "passed": len(results),
+            "passed": len(selected_results),
             "skipped": skipped,
             "errors": error_count,
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
         }

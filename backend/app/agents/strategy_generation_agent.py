@@ -8,9 +8,15 @@ import cohere
 from app.agents.strategy_spec import StrategySpec
 
 
-SUPPORTED_STRATEGIES = {"macd", "mean_reversion", "trend_follower"}
+SUPPORTED_STRATEGIES = {
+    "macd",
+    "mean_reversion",
+    "trend_follower",
+    "macd_volume_confirmation",
+    "rsi_adx_filter",
+    "rsi_volume_filter",
+}
 EXPERIMENTAL_STRATEGIES = {
-    "pairs_trading_cointegration",
     "rsi_adx_filter",
     "rsi_volume_filter",
     "macd_volume_confirmation",
@@ -39,6 +45,29 @@ DEFAULT_PARAM_SETS = {
         "adx_window": 14,
         "adx_threshold": 25.0,
     },
+    "macd_volume_confirmation": {
+        "macd_fast": 12,
+        "macd_slow": 26,
+        "macd_signal": 9,
+        "volume_ma_window": 20,
+        "volume_confirmation_ratio": 1.2,
+    },
+    "rsi_adx_filter": {
+        "bb_window": 20,
+        "bb_std": 2.0,
+        "rsi_window": 14,
+        "rsi_entry": 30,
+        "rsi_exit": 65,
+        "adx_window": 14,
+        "adx_threshold": 18.0,
+    },
+    "rsi_volume_filter": {
+        "rsi_window": 14,
+        "rsi_entry": 30,
+        "rsi_exit": 70,
+        "volume_ma_window": 20,
+        "volume_confirmation_ratio": 1.1,
+    },
 }
 
 STRATEGY_ALIASES = {
@@ -49,8 +78,6 @@ STRATEGY_ALIASES = {
     "macd": "macd",
     "mean_reversion": "mean_reversion",
     "mean reversion": "mean_reversion",
-    "pairs_trading": "pairs_trading_cointegration",
-    "pairs_trading_cointegration": "pairs_trading_cointegration",
     "rsi_adx_filter": "rsi_adx_filter",
     "rsi_volume_filter": "rsi_volume_filter",
     "macd_volume_confirmation": "macd_volume_confirmation",
@@ -144,9 +171,24 @@ class StrategyGenerationAgent:
         try:
             with self.research_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
-            return data if isinstance(data, dict) else {"papers": []}
+            if not isinstance(data, dict):
+                return {"papers": []}
+            papers = data.get("papers", [])
+            data["papers"] = self._flatten_papers(papers)
+            return data
         except Exception:
             return {"papers": []}
+
+    def _flatten_papers(self, papers: Any) -> List[Dict[str, Any]]:
+        flattened: List[Dict[str, Any]] = []
+        if not isinstance(papers, list):
+            return flattened
+        for item in papers:
+            if isinstance(item, dict):
+                flattened.append(item)
+            elif isinstance(item, list):
+                flattened.extend(self._flatten_papers(item))
+        return flattened
 
     def _retrieve_research_context(
         self,
@@ -225,7 +267,7 @@ class StrategyGenerationAgent:
             )
 
         experimental_instruction = (
-            "You may also propose experimental strategies beyond the current live engine only if you mark them as backtestable false and include implementation_hint."
+            "You may propose research-enhanced strategies only if they match one of the supported live engine families listed below."
             if allow_experimental
             else
             "Only return backtestable strategies supported by the current live engine."
@@ -255,7 +297,10 @@ class StrategyGenerationAgent:
             "- macd: macd_fast, macd_slow, macd_signal, bb_window, bb_std, squeeze_quantile_window, squeeze_threshold_quantile\n"
             "- mean_reversion: bb_window, bb_std, rsi_window, rsi_entry, rsi_exit\n"
             "- trend_follower: ema_fast, ema_slow, adx_window, adx_threshold\n"
-            "Experimental strategies can use their own params, but must be marked backtestable false.\n"
+            "- macd_volume_confirmation: macd_fast, macd_slow, macd_signal, volume_ma_window, volume_confirmation_ratio\n"
+            "- rsi_adx_filter: bb_window, bb_std, rsi_window, rsi_entry, rsi_exit, adx_window, adx_threshold\n"
+            "- rsi_volume_filter: rsi_window, rsi_entry, rsi_exit, volume_ma_window, volume_confirmation_ratio\n"
+            "All returned strategies must be backtestable in the current live engine.\n"
             f"Ticker: {ticker}\n"
             f"Date range: {start_date} to {end_date}\n"
             f"Market context: {json.dumps(market_context, default=str)}\n"
@@ -276,9 +321,9 @@ class StrategyGenerationAgent:
                 continue
 
             strategy_name = self._normalize_strategy_name(item.get("strategy_name"))
-            backtestable = bool(item.get("backtestable", strategy_name in SUPPORTED_STRATEGIES))
-            if backtestable and strategy_name not in SUPPORTED_STRATEGIES:
+            if strategy_name not in SUPPORTED_STRATEGIES:
                 continue
+            backtestable = True
 
             strategy_params = self._normalize_params(strategy_name, item.get("strategy_params", {}), backtestable)
             specs.append(
@@ -355,7 +400,7 @@ class StrategyGenerationAgent:
         ]
         if allow_experimental:
             specs.append(
-                self._make_experimental_spec(
+                self._make_research_supported_spec(
                     "macd_volume_confirmation",
                     {"macd_fast": 12, "macd_slow": 26, "macd_signal": 9, "volume_ma_window": 20, "volume_confirmation_ratio": 1.2},
                     "MACD trend-following with a volume confirmation filter.",
@@ -390,17 +435,7 @@ class StrategyGenerationAgent:
         ]
         if allow_experimental:
             specs.append(
-                self._make_experimental_spec(
-                    "pairs_trading_cointegration",
-                    {"lookback_window": 60, "entry_zscore": 2.0, "exit_zscore": 0.5, "cointegration_pvalue_threshold": 0.05},
-                    "Cointegration-driven pairs trading for spread mean reversion.",
-                    "Research-backed pairs trading can complement simple single-asset reversion by focusing on relative-value dislocations.",
-                    research_entries,
-                    related_family="mean_reversion",
-                )
-            )
-            specs.append(
-                self._make_experimental_spec(
+                self._make_research_supported_spec(
                     "rsi_adx_filter",
                     {"bb_window": 20, "bb_std": 2.0, "rsi_window": 14, "rsi_entry": 30, "rsi_exit": 65, "adx_window": 14, "adx_threshold": 18.0},
                     "RSI and Bollinger mean reversion filtered by low ADX trend strength.",
@@ -425,7 +460,7 @@ class StrategyGenerationAgent:
         )
         if allow_experimental:
             specs.append(
-                self._make_experimental_spec(
+                self._make_research_supported_spec(
                     "rsi_volume_filter",
                     {"rsi_window": 14, "rsi_entry": 30, "rsi_exit": 70, "volume_ma_window": 20, "volume_confirmation_ratio": 1.1},
                     "RSI reversal setup with a volume participation filter.",
@@ -451,7 +486,7 @@ class StrategyGenerationAgent:
             metadata={"candidate_type": "backtestable_now"},
         )
 
-    def _make_experimental_spec(
+    def _make_research_supported_spec(
         self,
         strategy_name: str,
         strategy_params: Dict[str, Any],
@@ -469,12 +504,12 @@ class StrategyGenerationAgent:
             description=description,
             rationale=rationale,
             source="rule_based_research",
-            backtestable=False,
-            confidence=self._confidence_from_research(research_basis, research_entries, False),
+            backtestable=True,
+            confidence=self._confidence_from_research(research_basis, research_entries, True),
             research_basis=research_basis,
-            generated_code=self._generate_experimental_code(strategy_name, strategy_params),
-            implementation_hint="Requires a new strategy module before BacktestAgent can execute it.",
-            metadata={"candidate_type": "experimental_idea"},
+            generated_code=self._generate_supported_code(strategy_name, strategy_params),
+            implementation_hint="Supported in the current backtest engine.",
+            metadata={"candidate_type": "backtestable_now", "research_variant": True},
         )
 
     def _finalize_specs(
@@ -490,21 +525,14 @@ class StrategyGenerationAgent:
     ) -> List[StrategySpec]:
         finalized: List[StrategySpec] = []
         for spec in self._dedupe_specs(specs):
-            if not allow_experimental and not spec.backtestable:
+            spec.strategy_name = self._normalize_strategy_name(spec.strategy_name)
+            if spec.strategy_name not in SUPPORTED_STRATEGIES:
                 continue
-            if spec.backtestable:
-                spec.strategy_name = self._normalize_strategy_name(spec.strategy_name)
-                if spec.strategy_name not in SUPPORTED_STRATEGIES:
-                    continue
-                spec.strategy_params = self._normalize_params(spec.strategy_name, spec.strategy_params, True)
-                spec.generated_code = spec.generated_code or self._generate_supported_code(spec.strategy_name, spec.strategy_params)
-            else:
-                EXPERIMENTAL_STRATEGIES.add(spec.strategy_name)
-                spec.generated_code = spec.generated_code or self._generate_experimental_code(spec.strategy_name, spec.strategy_params)
-                spec.implementation_hint = spec.implementation_hint or "Requires a new strategy module before BacktestAgent can execute it."
+            spec.backtestable = True
+            spec.strategy_params = self._normalize_params(spec.strategy_name, spec.strategy_params, True)
+            spec.generated_code = spec.generated_code or self._generate_supported_code(spec.strategy_name, spec.strategy_params)
             if not spec.research_basis:
-                family = spec.strategy_name if spec.backtestable else "experimental"
-                spec.research_basis = self._research_ids_for_strategy(family, research_entries)
+                spec.research_basis = self._research_ids_for_strategy(spec.strategy_name, research_entries)
             spec.confidence = self._clamp_confidence(spec.confidence or self._confidence_from_research(spec.research_basis, research_entries, spec.backtestable))
             spec.metadata.update({"ticker": ticker, "start_date": start_date, "end_date": end_date, "market_bias": market_context.get("strategy_bias", "neutral"), "regime": market_context.get("regime"), "trend_direction": market_context.get("trend_direction")})
             finalized.append(spec)
@@ -565,6 +593,54 @@ class StrategyGenerationAgent:
                 "    out = df.copy()\n"
                 "    out['buy_signal'] = out['macd_line'] > out['macd_signal']\n"
                 "    out['sell_signal'] = out['macd_line'] < out['macd_signal']\n"
+                "    return out\n"
+            )
+        if strategy_name == "macd_volume_confirmation":
+            return (
+                "import numpy as np\nimport pandas as pd\n\n"
+                "def add_indicators(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                f"    out['ema_fast'] = out['Close'].ewm(span={strategy_params['macd_fast']}, adjust=False).mean()\n"
+                f"    out['ema_slow'] = out['Close'].ewm(span={strategy_params['macd_slow']}, adjust=False).mean()\n"
+                "    out['macd_line'] = out['ema_fast'] - out['ema_slow']\n"
+                f"    out['macd_signal'] = out['macd_line'].ewm(span={strategy_params['macd_signal']}, adjust=False).mean()\n"
+                f"    out['volume_ma'] = out['Volume'].rolling({strategy_params['volume_ma_window']}).mean()\n"
+                f"    out['volume_confirmed'] = out['Volume'] >= out['volume_ma'] * {float(strategy_params['volume_confirmation_ratio'])}\n"
+                "    return out\n\n"
+                "def generate_signals(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                "    out['buy_signal'] = (out['macd_line'] > out['macd_signal']) & out['volume_confirmed']\n"
+                "    out['sell_signal'] = out['macd_line'] < out['macd_signal']\n"
+                "    return out\n"
+            )
+        if strategy_name == "rsi_adx_filter":
+            return (
+                "import numpy as np\nimport pandas as pd\n\n"
+                "def add_indicators(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                f"    out['bb_mid'] = out['Close'].rolling({strategy_params['bb_window']}).mean()\n"
+                f"    rolling_std = out['Close'].rolling({strategy_params['bb_window']}).std()\n"
+                f"    out['bb_upper'] = out['bb_mid'] + {float(strategy_params['bb_std'])} * rolling_std\n"
+                f"    out['bb_lower'] = out['bb_mid'] - {float(strategy_params['bb_std'])} * rolling_std\n"
+                "    return out\n\n"
+                "def generate_signals(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                "    out['buy_signal'] = out['Close'] <= out['bb_lower']\n"
+                "    out['sell_signal'] = out['Close'] >= out['bb_mid']\n"
+                "    return out\n"
+            )
+        if strategy_name == "rsi_volume_filter":
+            return (
+                "import numpy as np\nimport pandas as pd\n\n"
+                "def add_indicators(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                f"    out['volume_ma'] = out['Volume'].rolling({strategy_params['volume_ma_window']}).mean()\n"
+                f"    out['volume_confirmed'] = out['Volume'] >= out['volume_ma'] * {float(strategy_params['volume_confirmation_ratio'])}\n"
+                "    return out\n\n"
+                "def generate_signals(df: pd.DataFrame) -> pd.DataFrame:\n"
+                "    out = df.copy()\n"
+                "    out['buy_signal'] = out['volume_confirmed']\n"
+                "    out['sell_signal'] = ~out['volume_confirmed']\n"
                 "    return out\n"
             )
         return (
