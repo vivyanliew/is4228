@@ -62,8 +62,6 @@ if "strategy_generated_background_futures" not in st.session_state:
     st.session_state["strategy_generated_background_futures"] = {}
 if "strategy_generated_report_future" not in st.session_state:
     st.session_state["strategy_generated_report_future"] = None
-if "strategy_generation_show_raw" not in st.session_state:
-    st.session_state["strategy_generation_show_raw"] = False
 if "selected_tier" not in st.session_state:
     st.session_state["selected_tier"] = "Free"
 if "backtest_mode" not in st.session_state:
@@ -84,6 +82,8 @@ if "backtest_signature" not in st.session_state:
     st.session_state["backtest_signature"] = None
 if "strategy_generation_signature" not in st.session_state:
     st.session_state["strategy_generation_signature"] = None
+if "selected_generated_strategy_signature" not in st.session_state:
+    st.session_state["selected_generated_strategy_signature"] = None
 
 
 def tier_enabled(active_tier: str, required_tier: str) -> bool:
@@ -271,6 +271,16 @@ def render_compact_stat(label: str, value: object) -> None:
     )
 
 
+def extract_markdown_title(markdown: str) -> str | None:
+    if not isinstance(markdown, str):
+        return None
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return None
+
+
 def build_strategy_report_payload(
     data: dict,
     market_context: dict,
@@ -427,11 +437,7 @@ def render_market_intelligence_tab(active_tier: str):
         return
 
     with st.form("market_intel_form"):
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            ticker = st.selectbox("Ticker", options=ASSETS, index=0)
-        with col2:
-            show_raw = st.toggle("Show Raw API Response", value=False)
+        ticker = st.selectbox("Ticker", options=ASSETS, index=0)
         submitted = st.form_submit_button("Fetch Market Intelligence", use_container_width=True)
 
     market_intel_signature = (ticker,)
@@ -451,16 +457,13 @@ def render_market_intelligence_tab(active_tier: str):
                 }
             else:
                 st.session_state["market_intel_result"] = response.json()
-                st.session_state["market_intel_show_raw"] = show_raw
         except Exception as exc:
             st.session_state["market_intel_result"] = {
                 "request_error": "Backend connection failed",
                 "response_body": str(exc),
             }
-            st.session_state["market_intel_show_raw"] = show_raw
 
     data = st.session_state["market_intel_result"]
-    show_raw = st.session_state.get("market_intel_show_raw", False)
 
     if not data:
         st.info("Choose a ticker and fetch market intelligence.")
@@ -499,10 +502,6 @@ def render_market_intelligence_tab(active_tier: str):
             st.markdown(f"**{article.get('title', 'Untitled article')}**")
             if article.get("url"):
                 st.markdown(f"[Open article]({article['url']})")
-
-    if show_raw:
-        st.subheader("Raw API Response")
-        st.json(data)
 
 
 def render_backtester_tab(active_tier: str):
@@ -826,13 +825,7 @@ def render_strategy_generation_tab(active_tier: str):
         with row4:
             end_date = st.date_input("End Date", value=DEFAULT_GENERATION_END, key="gen_end")
 
-        row8, row9 = st.columns([1, 1])
-        with row8:
-            use_llm = st.toggle("Use Cohere if available", value=True)
-        with row9:
-            show_raw = st.toggle("Show Raw API Response", value=st.session_state["strategy_generation_show_raw"])
-
-        st.session_state["strategy_generation_show_raw"] = show_raw
+        use_llm = st.toggle("Use Cohere if available", value=True)
         submitted = st.button("Generate Strategies", use_container_width=True, key="generate_strategies_button")
 
     strategy_generation_signature = (
@@ -1019,6 +1012,15 @@ def render_strategy_generation_tab(active_tier: str):
             else "Research Based"
         )
 
+        selected_strategy_signature = (
+            selected_index,
+            selected_strategy.get("strategy_name"),
+        )
+        if st.session_state.get("selected_generated_strategy_signature") != selected_strategy_signature:
+            st.session_state["strategy_generated_backtest_result"] = None
+            st.session_state["strategy_generated_optimization_result"] = None
+            st.session_state["selected_generated_strategy_signature"] = selected_strategy_signature
+
         with st.container(border=True):
             header_col1, header_col2 = st.columns([5, 1])
             with header_col1:
@@ -1125,13 +1127,13 @@ def render_strategy_generation_tab(active_tier: str):
                 show_user_error("Backtest failed", exc=exc)
 
         all_evaluations = st.session_state.get("strategy_generated_all_evaluations", {})
-        selected_evaluation = all_evaluations.get(selected_index)
-        if selected_evaluation:
-            backtest_result = selected_evaluation["backtest_result"]
+        pipeline_result = st.session_state.get("strategy_generated_backtest_result")
+        if pipeline_result and pipeline_result.get("strategy", {}).get("strategy_name") == selected_strategy["strategy_name"]:
+            backtest_result = pipeline_result["result"]
             st.divider()
             st.subheader("Optimization Output")
 
-            optimization_result = selected_evaluation.get("optimization_result", {})
+            optimization_result = st.session_state.get("strategy_generated_optimization_result") or {}
             top_configs = optimization_result.get("top_configs", [])
             if optimization_result.get("fallback_used"):
                 st.info(
@@ -1148,7 +1150,7 @@ def render_strategy_generation_tab(active_tier: str):
             with opt_col3:
                 st.metric("Best Score", top_configs[0].get("score", "n/a") if top_configs else "n/a")
 
-            best_params = selected_evaluation.get("best_params", selected_strategy.get("strategy_params", {}))
+            best_params = pipeline_result.get("params", selected_strategy.get("strategy_params", {}))
             best_params_df = pd.DataFrame(
                 [{"Parameter": key, "Value": value} for key, value in best_params.items()]
             )
@@ -1207,6 +1209,9 @@ def render_strategy_generation_tab(active_tier: str):
 
         report_result = st.session_state.get("strategy_generated_report_result")
         if report_result:
+            report_title = extract_markdown_title(report_result.get("markdown", ""))
+            if report_title:
+                st.markdown(f"### {report_title}")
             st.write(report_result.get("summary", "No summary available."))
 
             for section_name, section_content in report_result.get("sections", {}).items():
@@ -1221,11 +1226,6 @@ def render_strategy_generation_tab(active_tier: str):
                 st.info("No backtestable generated strategies are available for reporting.")
             else:
                 st.info(f"Background evaluation progress: {ready_count}/{total_count} strategies completed. The report will appear automatically once all evaluations are ready.")
-
-    if st.session_state["strategy_generation_show_raw"]:
-        st.subheader("Raw API Response")
-        st.json(data)
-
 
 render_header()
 active_tier = st.session_state["selected_tier"]
