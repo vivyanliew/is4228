@@ -8,7 +8,14 @@ import yfinance as yf
 
 from app.strategies.strategy_ema import run_strategy as run_ema_strategy
 from app.strategies.strategy_macd import run_strategy as run_macd_strategy
+from app.strategies.strategy_macd_volume_confirmation import (
+    run_strategy as run_macd_volume_confirmation_strategy,
+)
 from app.strategies.strategy_mean_reversion import run_strategy as run_mean_reversion_strategy
+from app.strategies.strategy_rsi_adx_filter import run_strategy as run_rsi_adx_filter_strategy
+from app.strategies.strategy_rsi_volume_filter import (
+    run_strategy as run_rsi_volume_filter_strategy,
+)
 
 
 def fetch_price_data(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
@@ -37,6 +44,12 @@ def run_strategy_by_name(strategy_name: str, price_df: pd.DataFrame, strategy_pa
         return run_mean_reversion_strategy(price_df, strategy_params)
     if strategy_name == "trend_follower":
         return run_ema_strategy(price_df, strategy_params)
+    if strategy_name == "macd_volume_confirmation":
+        return run_macd_volume_confirmation_strategy(price_df, strategy_params)
+    if strategy_name == "rsi_adx_filter":
+        return run_rsi_adx_filter_strategy(price_df, strategy_params)
+    if strategy_name == "rsi_volume_filter":
+        return run_rsi_volume_filter_strategy(price_df, strategy_params)
     raise ValueError(f"Unsupported strategy: {strategy_name}")
 
 

@@ -41,7 +41,12 @@ def build_user_prompt(
     risk_results: dict,
     optimization_results: list[dict],
 ) -> str:
-    
+    market_context = market_context if isinstance(market_context, dict) else {}
+    strategy_specs = strategy_specs if isinstance(strategy_specs, list) else []
+    backtest_results = backtest_results if isinstance(backtest_results, dict) else {}
+    risk_results = risk_results if isinstance(risk_results, dict) else {}
+    optimization_results = optimization_results if isinstance(optimization_results, list) else []
+
     start = start_date
     end = end_date
 
@@ -185,10 +190,16 @@ def rule_based_report(
     start_date: str,
     end_date: str,
     market_context: dict,
+    strategy_specs: list[dict],
     backtest_results: dict,
     risk_results: dict,
     optimization_results: list[dict],
 ) -> str:
+    market_context = market_context if isinstance(market_context, dict) else {}
+    strategy_specs = strategy_specs if isinstance(strategy_specs, list) else []
+    backtest_results = backtest_results if isinstance(backtest_results, dict) else {}
+    risk_results = risk_results if isinstance(risk_results, dict) else {}
+    optimization_results = optimization_results if isinstance(optimization_results, list) else []
 
     start = start_date
     end = end_date
@@ -202,14 +213,22 @@ def rule_based_report(
     overfit_score = risk_results.get("overfitting_score", "N/A")
     calmar = risk_results.get("calmar_ratio_oos", float("nan"))
  
-    top = optimization_results[0] if optimization_results else {}
+    top = optimization_results[0] if optimization_results and isinstance(optimization_results[0], dict) else {}
+    strategy_lines = []
+    for strategy in strategy_specs[:5]:
+        if not isinstance(strategy, dict):
+            continue
+        strategy_name = str(strategy.get("strategy_name", "Unknown")).replace("_", " ").title()
+        rationale = strategy.get("rationale") or strategy.get("description") or "No summary available."
+        strategy_lines.append(f"- **{strategy_name}**: {rationale}")
+    strategy_overview_md = "\n".join(strategy_lines) if strategy_lines else "- No generated strategies available."
  
     warnings = []
     if risk_results.get("overfitting_score", 0) >= 2:
         warnings.append("⚠️ High overfitting risk — validate on additional OOS windows before live deployment.")
-    if oos_metrics.get("total_return", 0) < 0:
+    if oos_metrics.get("cumulative_return_pct", 0) < 0:
         warnings.append("⚠️ Strategy produced negative returns on the OOS window.")
-    if oos_metrics.get("num_trades", 0) < 20:
+    if oos_metrics.get("number_of_trades", 0) < 20:
         warnings.append("⚠️ Fewer than 20 OOS trades — results may not be statistically significant.")
  
     warning_md = "\n".join(f"- {w}" for w in warnings) if warnings else "- No major warnings."
@@ -234,7 +253,7 @@ def rule_based_report(
         | Regime | {regime} |
         | Trend Direction | {market_context.get('trend_direction', 'N/A')} |
         | 30-Day Realised Vol | {vol:.1%} |
-        | SPY Correlation | {market_context.get('correlation_spy', 'N/A')} |
+        | SPY Correlation | {market_context.get('correlation_to_spy', 'N/A')} |
         | Strategy Bias | {bias} |
  
         **Reasoning:** {market_context.get('reasoning', 'N/A')}
@@ -243,6 +262,8 @@ def rule_based_report(
  
         ## 3. Strategy Overview
         Strategies were selected based on the **{bias}** bias derived from regime detection.
+        
+        {strategy_overview_md}
  
         ---
  
@@ -250,10 +271,10 @@ def rule_based_report(
         | Metric | In-Sample | Out-of-Sample |
         |---|---|---|
         | Sharpe Ratio | {is_metrics.get('sharpe_ratio', 'N/A')} | {oos_metrics.get('sharpe_ratio', 'N/A')} |
-        | Max Drawdown | {is_metrics.get('max_drawdown', 'N/A')} | {oos_metrics.get('max_drawdown', 'N/A')} |
-        | Win Rate | {is_metrics.get('win_rate', 'N/A')} | {oos_metrics.get('win_rate', 'N/A')} |
-        | Total Return | {is_metrics.get('total_return', 'N/A')} | {oos_metrics.get('total_return', 'N/A')} |
-        | Num Trades | {is_metrics.get('num_trades', 'N/A')} | {oos_metrics.get('num_trades', 'N/A')} |
+        | Max Drawdown | {is_metrics.get('max_drawdown_pct', 'N/A')} | {oos_metrics.get('max_drawdown_pct', 'N/A')} |
+        | Win Rate | {is_metrics.get('win_rate_pct', 'N/A')} | {oos_metrics.get('win_rate_pct', 'N/A')} |
+        | Total Return | {is_metrics.get('cumulative_return_pct', 'N/A')} | {oos_metrics.get('cumulative_return_pct', 'N/A')} |
+        | Num Trades | {is_metrics.get('number_of_trades', 'N/A')} | {oos_metrics.get('number_of_trades', 'N/A')} |
  
         ---
  
@@ -271,7 +292,7 @@ def rule_based_report(
         ```json
         {safe_json(top.get('params', top))}
         ```
-        Composite score: **{top.get('composite_score', 'N/A')}**
+        Composite score: **{top.get('score', 'N/A')}**
  
         ---
  

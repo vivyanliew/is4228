@@ -2,7 +2,6 @@
   "version": "1.0",
   "last_updated": "2026-04-13",
   "papers": [
-    [
       {
         "id": "technical_trading_strategies_trigger_indicators_omx",
         "title": "Technical Trading Strategies And the effect of trigger indicators",
@@ -174,6 +173,5 @@
         "backtestable_reason": "Requires ML models, sentiment data, and regime detection not supported in current engine",
         "citation": "Pillai et al. (2026) :contentReference[oaicite:4]{index=4}"
       }
-    ]
   ]
 }

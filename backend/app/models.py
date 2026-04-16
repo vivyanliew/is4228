@@ -158,9 +158,7 @@ class AgentBacktestRequest(pydantic.BaseModel):
     start_date: str = pydantic.Field(..., example="2015-01-01")
     end_date: str = pydantic.Field(..., example="2025-01-01")
     initial_capital: float = pydantic.Field(10000.0, example=10000.0)
-    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
-        ..., example="mean_reversion"
-    )
+    strategy_name: str = pydantic.Field(..., example="mean_reversion")
     strategy_params: Dict[str, Any] = pydantic.Field(
         ..., example={"bb_window": 20, "bb_std": 2.0, "rsi_window": 14, "rsi_entry": 30, "rsi_exit": 70}
     )
@@ -182,9 +180,7 @@ class OptimizeRequest(pydantic.BaseModel):
     start_date: str = pydantic.Field(..., example="2015-01-01")
     end_date: str = pydantic.Field(..., example="2025-01-01")
     initial_capital: float = pydantic.Field(10000.0, example=10000.0)
-    strategy_name: Literal["macd", "mean_reversion", "trend_follower"] = pydantic.Field(
-        ..., example="mean_reversion"
-    )
+    strategy_name: str = pydantic.Field(..., example="mean_reversion")
     param_grid: Dict[str, List[Any]] = pydantic.Field(
         ...,
         example={
@@ -204,6 +200,8 @@ class OptimizeResponse(pydantic.BaseModel):
     passed: int
     skipped: int
     errors: int
+    fallback_used: bool = False
+    fallback_reason: Optional[str] = None
 
 class MarketContextRequest(pydantic.BaseModel):
     ticker: str = pydantic.Field(..., example="BTC-USD")
