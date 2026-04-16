@@ -5,12 +5,14 @@ import streamlit as st
 from api import (
     AGENT_BACKTEST_URL,
     AGENT_MARKET_CONTEXT_URL,
+    AI_INSIGHTS_URL,
     MARKET_INTEL_URL,
+    RISK_ANALYSIS_URL,
     STRATEGY_GENERATION_URL,
     build_payload,
     get_backtest_endpoint,
 )
-from charts import render_charts_breakout, render_charts_mean_reversion, render_charts_trend
+from charts import render_charts_breakout, render_charts_mean_reversion, render_charts_trend, render_risk_analysis, render_ai_insights
 from metrics import render_metrics_breakout, render_metrics_mean_reversion, render_metrics_trend
 from sidebar import ASSETS, STRATEGIES
 
@@ -48,6 +50,12 @@ if "backtest_mode" not in st.session_state:
     st.session_state["backtest_mode"] = "Single Asset"
 if "backtest_portfolio_assets" not in st.session_state:
     st.session_state["backtest_portfolio_assets"] = ["AAPL", "MSFT"]
+if "backtest_config" not in st.session_state:
+    st.session_state["backtest_config"] = {}
+if "risk_analysis_data" not in st.session_state:
+    st.session_state["risk_analysis_data"] = None
+if "ai_insights_data" not in st.session_state:
+    st.session_state["ai_insights_data"] = None
 if "backtest_single_asset_value" not in st.session_state:
     st.session_state["backtest_single_asset_value"] = ASSETS[0]
 
@@ -247,30 +255,126 @@ def render_backtester_tab(active_tier: str):
         strategy = STRATEGIES[strategy_label]
         params = {}
         if strategy == "mean_reversion":
-            p1, p2, p3 = st.columns(3)
-            with p1:
-                params["rsi_low"] = st.slider("RSI Oversold", 10, 50, 30)
-            with p2:
-                params["rsi_high"] = st.slider("RSI Overbought", 50, 90, 70)
-            with p3:
-                params["bb_window"] = st.slider("Bollinger Window", 10, 50, 20)
-        elif strategy == "trend_follower":
-            p1, p2, p3 = st.columns(3)
-            with p1:
-                params["ema_short"] = st.slider("EMA Short", 5, 50, 20)
-            with p2:
-                params["ema_long"] = st.slider("EMA Long", 20, 200, 50)
-            with p3:
-                params["adx_threshold"] = st.slider("ADX Threshold", 10, 50, 25)
-        else:
+            st.markdown(
+                '<p style="color:black; font-size:1.05rem; margin-bottom:0;">'
+                '<b>Mean Reversion (RSI + Bollinger)</b> — buys oversold dips and sells overbought bounces.</p>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<p style="color:black; font-size:0.95rem; margin-top:0;">'
+                '📈 <b>Buy signal:</b> RSI drops below the oversold threshold <b>or</b> price touches the lower Bollinger Band.<br>'
+                '📉 <b>Exit signal:</b> RSI rises above the overbought threshold <b>and</b> price reaches the upper Bollinger Band.</p>',
+                unsafe_allow_html=True,
+            )
+            with st.expander("How does this strategy work?"):
+                st.markdown(
+                    "The **Relative Strength Index**, or RSI, measures recent price momentum on a scale from 0 to 100. "
+                    "When RSI falls below a certain threshold, it suggests the stock has dropped quickly and may be "
+                    "oversold, meaning a price rebound could be likely.\n\n"
+                    "**Bollinger Bands**, on the other hand, track how far the price moves relative to its recent average. "
+                    "They consist of a moving average with upper and lower bands based on standard deviation. When the "
+                    "price touches the lower band, it indicates the stock is trading lower than usual compared to its "
+                    "recent range, which may signal a potential buying opportunity.\n\n"
+                    "A long position is opened when **either** condition fires (RSI oversold **or** lower-band touch) "
+                    "and closed only when **both** conditions reverse (RSI overbought **and** upper-band touch). "
+                    "This asymmetry keeps you in winning trades longer while still catching quick dips."
+                )
             p1, p2 = st.columns(2)
             with p1:
-                params["macd_fast"] = st.slider("MACD Fast", 5, 20, 12)
+                params["rsi_low"] = st.slider(
+                    "RSI Oversold", 10, 50, 30,
+                    help="Buy signal threshold — lower values require a deeper dip before entering.",
+                )
             with p2:
-                params["macd_slow"] = st.slider("MACD Slow", 20, 50, 26)
+                params["rsi_high"] = st.slider(
+                    "RSI Overbought", 50, 90, 70,
+                    help="Sell signal threshold — higher values hold positions longer before exiting.",
+                )
+            p3, p4 = st.columns(2)
+            with p3:
+                params["bb_window"] = st.slider(
+                    "Bollinger Window", 10, 50, 20,
+                    help="Lookback period (days) for the moving average and bands. Shorter = more reactive.",
+                )
+            with p4:
+                params["bb_std"] = st.slider(
+                    "Bollinger Std Dev", 1.0, 3.5, 2.0, step=0.1,
+                    help="Band width in standard deviations. Wider bands = fewer but higher-conviction signals.",
+                )
+        elif strategy == "trend_follower":
+            st.markdown(
+                '<p style="color:black; font-size:1.05rem; margin-bottom:0;">'
+                '<b>Trend Follower (EMA + ADX)</b> — rides sustained directional moves.</p>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<p style="color:black; font-size:0.95rem; margin-top:0;">'
+                '📈 <b>Buy signal:</b> fast EMA is above slow EMA while ADX confirms a strong trend (ADX &gt; threshold).<br>'
+                '📉 <b>Exit signal:</b> fast EMA crosses back below slow EMA.</p>',
+                unsafe_allow_html=True,
+            )
+            with st.expander("How does this strategy work?"):
+                st.markdown(
+                    "Two **Exponential Moving Averages** (fast and slow) track price momentum. "
+                    "When the fast EMA is above the slow EMA the market is in an uptrend.\n\n"
+                    "The **ADX (Average Directional Index)** measures trend *strength* regardless of direction. "
+                    "An ADX reading above the threshold confirms the trend is strong enough to trade.\n\n"
+                    "A long position is held for as long as the fast EMA stays above the slow EMA **and** ADX confirms trend strength. "
+                    "The position is exited only when the fast EMA crosses below the slow EMA, "
+                    "which avoids premature exits during minor pullbacks."
+                )
+            p1, p2, p3 = st.columns(3)
+            with p1:
+                params["ema_short"] = st.slider(
+                    "EMA Short", 5, 50, 20,
+                    help="Fast moving average period. Shorter = more responsive to recent price changes.",
+                )
+            with p2:
+                params["ema_long"] = st.slider(
+                    "EMA Long", 20, 200, 50,
+                    help="Slow moving average period. Longer = smoother trend baseline.",
+                )
+            with p3:
+                params["adx_threshold"] = st.slider(
+                    "ADX Threshold", 10, 50, 25,
+                    help="Minimum ADX value to confirm a trend. Higher = only trade in strong trends.",
+                )
+        else:
+            st.markdown(
+                '<p style="color:black; font-size:1.05rem; margin-bottom:0;">'
+                '<b>Volatility Breakout (MACD + BB Width)</b> — catches breakouts after volatility squeezes.</p>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<p style="color:black; font-size:0.95rem; margin-top:0;">'
+                '📈 <b>Buy signal:</b> Bollinger Band squeeze detected recently and MACD histogram crosses above zero.<br>'
+                '📉 <b>Exit signal:</b> MACD histogram crosses below zero (momentum reversal).</p>',
+                unsafe_allow_html=True,
+            )
+            with st.expander("How does this strategy work?"):
+                st.markdown(
+                    "**Bollinger Band Width** measures volatility. When the bands narrow to historically low levels "
+                    "(a *squeeze*), a large price move often follows.\n\n"
+                    "The **MACD histogram** shows the difference between the MACD line and its signal line. "
+                    "A crossover from negative to positive indicates upward momentum is accelerating.\n\n"
+                    "The strategy enters when a squeeze has occurred in a recent lookback window (last 5 bars) "
+                    "and the MACD histogram turns positive. "
+                    "It exits when the histogram turns negative, signaling momentum has reversed."
+                )
+            p1, p2 = st.columns(2)
+            with p1:
+                params["macd_fast"] = st.slider(
+                    "MACD Fast", 5, 20, 12,
+                    help="Fast EMA period for MACD calculation. Shorter = more sensitive to recent moves.",
+                )
+            with p2:
+                params["macd_slow"] = st.slider(
+                    "MACD Slow", 20, 50, 26,
+                    help="Slow EMA period for MACD calculation. Longer = smoother signal line.",
+                )
 
         params["initial_capital"] = initial_capital
-        submitted = st.button("Run Backtest", use_container_width=True, key="run_backtest_button")
+        submitted = st.button("Run Backtest", type="primary", use_container_width=True, key="run_backtest_button")
 
     if submitted:
         if not assets:
@@ -297,6 +401,9 @@ def render_backtester_tab(active_tier: str):
                 else:
                     st.session_state["backtest_data"] = response.json()
                     st.session_state["backtest_strategy"] = strategy
+                    st.session_state["backtest_config"] = config
+                    st.session_state["risk_analysis_data"] = None
+                    st.session_state["ai_insights_data"] = None
             except requests.RequestException as exc:
                 st.error(f"Could not reach backend API. Details: {exc}")
 
@@ -309,11 +416,6 @@ def render_backtester_tab(active_tier: str):
         return
 
     st.divider()
-    if strategy == "macd":
-        render_metrics_breakout(data)
-        render_charts_breakout(data)
-        return
-
     if "portfolio_metrics" not in data:
         st.subheader("Metrics")
         st.json(data.get("metrics", {}))
@@ -333,6 +435,63 @@ def render_backtester_tab(active_tier: str):
     elif strategy == "trend_follower":
         render_metrics_trend(data)
         render_charts_trend(data)
+    elif strategy == "macd":
+        render_metrics_breakout(data)
+        render_charts_breakout(data)
+
+    # Pro-tier: Risk Analysis (overfitting detection)
+    if tier_enabled(active_tier, "Pro") and "portfolio_metrics" in data:
+        st.markdown("---")
+        st.markdown(
+            '<h3 style="text-decoration:underline;"><b>🔍 Risk Analysis (Overfitting Detection)</b></h3>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Run Risk Analysis", key="risk_btn", type="primary"):
+            with st.spinner("Running overfitting analysis (70/30 IS/OOS split)..."):
+                try:
+                    payload = build_payload(st.session_state.get("backtest_config", {}))
+                    resp = requests.post(RISK_ANALYSIS_URL, json=payload, timeout=120)
+                    if resp.status_code == 200:
+                        st.session_state["risk_analysis_data"] = resp.json()
+                    else:
+                        st.error(f"Risk analysis failed: {resp.text}")
+                except requests.RequestException as exc:
+                    st.error(f"Could not reach risk analysis endpoint: {exc}")
+
+        risk_data = st.session_state.get("risk_analysis_data")
+        if risk_data:
+            render_risk_analysis(risk_data)
+
+    # Pro-tier: AI Insights (Cohere)
+    if tier_enabled(active_tier, "Pro") and "portfolio_metrics" in data:
+        st.markdown("---")
+        st.markdown(
+            '<h3 style="text-decoration:underline;"><b>🤖 AI Insights</b></h3>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Generate AI Insights", key="ai_insights_btn", type="primary"):
+            with st.spinner("Generating AI insights via Cohere..."):
+                try:
+                    config = st.session_state.get("backtest_config", {})
+                    insights_payload = {
+                        "strategy_name": config.get("strategy", strategy),
+                        "portfolio_metrics": data.get("portfolio_metrics", {}),
+                        "benchmark": data.get("benchmark", {}),
+                        "risk_analysis": st.session_state.get("risk_analysis_data") or {},
+                        "tickers": data.get("tickers", []),
+                        "strategy_params": config.get("params", {}),
+                    }
+                    resp = requests.post(AI_INSIGHTS_URL, json=insights_payload, timeout=90)
+                    if resp.status_code == 200:
+                        st.session_state["ai_insights_data"] = resp.json()
+                    else:
+                        st.error(f"AI insights failed: {resp.text}")
+                except requests.RequestException as exc:
+                    st.error(f"Could not reach AI insights endpoint: {exc}")
+
+        ai_data = st.session_state.get("ai_insights_data")
+        if ai_data:
+            render_ai_insights(ai_data)
 
 
 def render_strategy_generation_tab(active_tier: str):

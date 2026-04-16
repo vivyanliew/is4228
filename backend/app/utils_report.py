@@ -2,20 +2,16 @@ from __future__ import annotations
 import os
 import json
 import textwrap
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 from dotenv import load_dotenv
 from pathlib import Path
 import cohere
-
-
 from app.market_intel import COHERE_API_KEY
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 api_key = os.getenv("COHERE_API_KEY")
-
 
 # ---------------------------------------------------------------------------
 # Helper – safe JSON serialisation (numpy floats, NaNs, etc.)

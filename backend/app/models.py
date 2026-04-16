@@ -82,6 +82,7 @@ class PortfolioBacktestResponse(pydantic.BaseModel):
     per_ticker_metrics: Dict[str, Dict[str, Any]]
     per_ticker_signal_rows: Dict[str, List[Dict[str, Any]]]
     portfolio_signal_rows: List[Dict[str, Any]]
+    benchmark: Optional[Dict[str, Any]] = None
 
 
 class StrategyGenerationRequest(pydantic.BaseModel):

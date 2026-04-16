@@ -71,9 +71,10 @@ def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
         out["ema_fast"].shift(1) >= out["ema_slow"].shift(1)
     )
 
+    out["ema_bullish"] = out["ema_fast"] > out["ema_slow"]
     out["trend_confirmed"] = out["adx"] > out["adx_threshold"]
 
-    out["buy_signal"] = out["ema_cross_up"] & out["trend_confirmed"]
+    out["buy_signal"] = out["ema_bullish"] & out["trend_confirmed"]
     out["sell_signal"] = out["ema_cross_down"]
 
     position = []

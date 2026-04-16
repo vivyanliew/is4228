@@ -51,7 +51,9 @@ def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
     out["macd_cross_down"] = (out["macd_hist"] < 0) & (out["macd_hist"].shift(1) >= 0)
 
     # Buy / sell logic
-    out["buy_signal"] = out["is_squeeze"] & out["macd_cross_up"]
+    # Allow entry if a squeeze occurred within the last 5 bars
+    out["recent_squeeze"] = out["is_squeeze"].rolling(window=5, min_periods=1).max().astype(bool)
+    out["buy_signal"] = out["recent_squeeze"] & out["macd_cross_up"]
     out["sell_signal"] = out["macd_cross_down"]
 
     # Build position path
