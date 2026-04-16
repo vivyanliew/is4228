@@ -146,8 +146,9 @@ def extract_sections(markdown: str) -> dict[str, str]:
         "Conclusion",
     ]
  
-    # Find all H2/H3 headings and their positions
-    pattern = re.compile(r"^#{1,3}\s+(.+)$", re.MULTILINE)
+    # Only treat H2/H3 headings as expandable sections. Keep the H1 report
+    # title separate so it can be rendered as a normal heading in the UI.
+    pattern = re.compile(r"^#{2,3}\s+(.+)$", re.MULTILINE)
     matches = list(pattern.finditer(markdown))
  
     sections: dict[str, str] = {}
