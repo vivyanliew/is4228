@@ -60,7 +60,7 @@ def render_header():
     left_col, right_col = st.columns([4, 2])
 
     with left_col:
-        st.title("Strategy Lab")
+        st.title("Stratify")
         st.caption("Market intelligence, backtesting, and AI-assisted strategy generation in one workspace.")
 
     with right_col:
@@ -465,33 +465,54 @@ def render_strategy_generation_tab(active_tier: str):
     selected_index = st.radio(
         "Choose a strategy",
         options=radio_options,
-        format_func=lambda idx: (
-            f"{generated_strategies[idx]['strategy_name'].replace('_', ' ').title()} "
-            f"| confidence {float(generated_strategies[idx].get('confidence', 0)):.2f}"
-        ),
+        format_func=lambda idx: generated_strategies[idx]["strategy_name"].replace("_", " ").title(),
         key="selected_generated_strategy",
         horizontal=False,
     )
     selected_strategy = generated_strategies[selected_index]
     selected_backtestable = selected_strategy.get("backtestable", False)
     research_basis = selected_strategy.get("research_basis", [])
+    generation_tag = (
+        "Cohere Generated"
+        if selected_strategy.get("source") == "cohere_grounded"
+        else "Research Based"
+    )
 
     with st.container(border=True):
-        st.markdown(f"**{selected_strategy['strategy_name'].replace('_', ' ').title()}**")
-        st.caption(selected_strategy.get("description", "No description available."))
+        header_col1, header_col2 = st.columns([5, 1])
+        with header_col1:
+            st.markdown(f"**{selected_strategy['strategy_name'].replace('_', ' ').title()}**")
+            st.caption(selected_strategy.get("description", "No description available."))
+        with header_col2:
+            st.markdown(
+                f"""
+                <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+                    <span style="
+                        display:inline-block;
+                        padding:6px 10px;
+                        border-radius:999px;
+                        background:#eef2ff;
+                        color:#3730a3;
+                        font-size:0.8rem;
+                        font-weight:600;
+                        border:1px solid #c7d2fe;
+                        white-space:nowrap;
+                    ">{generation_tag}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+        summary_col1, summary_col2 = st.columns(2)
         with summary_col1:
-            st.metric("Confidence", f"{float(selected_strategy.get('confidence', 0)):.2f}")
-        with summary_col2:
-            st.metric("Source", str(selected_strategy.get("source", "unknown")).replace("_", " ").title())
-        with summary_col3:
             st.metric("Research Links", len(research_basis))
-        with summary_col4:
+        with summary_col2:
             st.metric("Status", "Ready" if selected_backtestable else "Idea")
 
         if selected_strategy.get("rationale"):
             st.write(f"**Why it fits:** {selected_strategy['rationale']}")
+
+        st.warning("AI-generated strategy suggestions can be useful, but they can still be wrong. Review them before relying on them.")
 
         params_df = pd.DataFrame(
             [
