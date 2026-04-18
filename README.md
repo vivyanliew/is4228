@@ -34,7 +34,7 @@ Strategy Lab is a full-stack web application with a **FastAPI backend** and **St
 
 ## Problem Statement
 
-Beginner traders are widely exposed to technical indicators through online content but lack structured tools to validate whether a strategy is robust or simply curve-fitted to historical data. Existing solutions are either too simplistic (charting tools with no backtesting rigor) or too inaccessible (institutional-grade platforms requiring programming expertise). Strategy Lab bridges this gap by embedding methodological best practices — out-of-sample validation, overfitting scoring, benchmark comparison — into an accessible, no-code interface.
+Beginner traders are widely exposed to technical indicators through online content but lack structured tools to validate whether a strategy is robust or simply curve-fitted to historical data. Existing solutions are either too simplistic (charting tools with no backtesting rigor) or too inaccessible (institutional-grade platforms requiring programming expertise). Strategy Lab bridges this gap by embedding methodological best practices like out-of-sample validation, overfitting scoring, benchmark comparison into an accessible, no-code interface.
 
 ---
 
@@ -268,27 +268,3 @@ The FastAPI backend exposes the following key endpoints (full documentation at `
 | `POST` | `/agent/report` | Generate strategy research report |
 
 ---
-
-## Common Issues
-
-### `python` not found
-Use `python3` (Mac/Linux) or `py` (Windows) instead of `python`.
-
-### `pip` not found
-Use `python -m pip install -r requirements.txt` or `py -m pip install -r requirements.txt`.
-
-### PowerShell blocks virtual environment activation
-Run as administrator: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`, then retry.
-
-### `uvicorn` not recognized
-Use `python -m uvicorn app.main:app --reload`.
-
-### Port 8000 already in use
-```bash
-uvicorn app.main:app --reload --port 8001
-```
-Then update `BASE_API_URL` in `frontend/api.py` to `http://127.0.0.1:8001`.
-
-### AI Insights / Market Intelligence not working
-Confirm `backend/.env` exists and contains valid `COHERE_API_KEY` and `FINNHUB_API_KEY` values.
-
