@@ -210,7 +210,6 @@ Open a second terminal from the project root:
 ```bash
 cd frontend
 pip install -r requirements.txt
-pip install markdown  # Required for AI Insights rendering
 ```
 
 ---

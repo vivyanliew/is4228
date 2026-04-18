@@ -6,3 +6,4 @@ yfinance
 pydantic
 cohere
 python-dotenv
+markdown
