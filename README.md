@@ -26,9 +26,9 @@ A tiered feature model progressively unlocks overfitting detection, AI-generated
 
 Strategy Lab is a full-stack web application with a **FastAPI backend** and **Streamlit frontend**. It supports two distinct modes of use:
 
-**Rule-based backtesting** — Users select a predefined strategy, configure parameters, choose from 21 assets, and set a date range. The system simulates trades on historical price data, computes performance metrics, and renders interactive visualizations including equity curves, trade signal charts, and drawdown plots. Pro-tier users additionally receive S&P 500 benchmark comparison, overfitting risk analysis (in-sample/out-of-sample), and AI-generated plain-English insights.
+**Rule-based backtesting** - Users select a predefined strategy, configure parameters, choose from 21 assets, and set a date range. The system simulates trades on historical price data, computes performance metrics, and renders interactive visualizations including equity curves, trade signal charts, and drawdown plots. Pro-tier users additionally receive S&P 500 benchmark comparison, overfitting risk analysis (in-sample/out-of-sample), and AI-generated plain-English insights.
 
-**Automated multi-agent pipeline (Advanced tier)** — A sequence of specialized agents orchestrates the full research workflow: market context analysis, LLM-driven strategy generation, backtesting of generated strategies, parameter optimization, risk validation, and synthesis into a structured research report.
+**Automated multi-agent pipeline (Advanced tier)** - A sequence of specialized agents orchestrates the full research workflow: market context analysis, LLM-driven strategy generation, backtesting of generated strategies, parameter optimization, risk validation, and synthesis into a structured research report.
 
 ---
 
