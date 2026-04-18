@@ -1,4 +1,5 @@
 from concurrent.futures import Future, ThreadPoolExecutor
+import re
 
 import pandas as pd
 import requests
@@ -62,8 +63,6 @@ if "strategy_generated_background_futures" not in st.session_state:
     st.session_state["strategy_generated_background_futures"] = {}
 if "strategy_generated_report_future" not in st.session_state:
     st.session_state["strategy_generated_report_future"] = None
-if "strategy_generation_show_raw" not in st.session_state:
-    st.session_state["strategy_generation_show_raw"] = False
 if "selected_tier" not in st.session_state:
     st.session_state["selected_tier"] = "Free"
 if "backtest_mode" not in st.session_state:
@@ -84,6 +83,8 @@ if "backtest_signature" not in st.session_state:
     st.session_state["backtest_signature"] = None
 if "strategy_generation_signature" not in st.session_state:
     st.session_state["strategy_generation_signature"] = None
+if "selected_generated_strategy_signature" not in st.session_state:
+    st.session_state["selected_generated_strategy_signature"] = None
 
 
 def tier_enabled(active_tier: str, required_tier: str) -> bool:
@@ -105,6 +106,15 @@ def clear_backtest_results() -> None:
 def clear_strategy_generation_results() -> None:
     st.session_state["strategy_generation_result"] = None
     st.session_state["strategy_generation_market_context"] = None
+    st.session_state["strategy_generated_backtest_result"] = None
+    st.session_state["strategy_generated_optimization_result"] = None
+    st.session_state["strategy_generated_report_result"] = None
+    st.session_state["strategy_generated_all_evaluations"] = {}
+    st.session_state["strategy_generated_background_futures"] = {}
+    st.session_state["strategy_generated_report_future"] = None
+
+
+def reset_strategy_generation_downstream_results() -> None:
     st.session_state["strategy_generated_backtest_result"] = None
     st.session_state["strategy_generated_optimization_result"] = None
     st.session_state["strategy_generated_report_result"] = None
@@ -271,6 +281,254 @@ def render_compact_stat(label: str, value: object) -> None:
     )
 
 
+def extract_markdown_title(markdown: str) -> str | None:
+    if not isinstance(markdown, str):
+        return None
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return None
+
+
+def create_simple_pdf_bytes(title: str, body: str) -> bytes:
+    replacements = {
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2022": "-",
+        "\u2026": "...",
+        "\xa0": " ",
+    }
+
+    def ascii_safe(text: str) -> str:
+        cleaned = str(text)
+        for old, new in replacements.items():
+            cleaned = cleaned.replace(old, new)
+        cleaned = "".join(ch if 32 <= ord(ch) <= 126 or ch in "\n\t" else " " for ch in cleaned)
+        cleaned = " ".join(cleaned.split())
+        return cleaned
+
+    def pdf_escape(text: str) -> str:
+        safe = ascii_safe(text)
+        return safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    def clean_markdown(text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+        cleaned = text.strip()
+        for token in ("**", "__", "`", "#"):
+            cleaned = cleaned.replace(token, "")
+        cleaned = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1", cleaned)
+        cleaned = re.sub(r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"\1", cleaned)
+        cleaned = re.sub(r"(?<!_)_(?!_)(.*?)(?<!_)_(?!_)", r"\1", cleaned)
+        cleaned = cleaned.replace("*", "")
+        cleaned = cleaned.replace("_", " ")
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        return cleaned.strip()
+
+    def wrap_text(text: str, max_chars: int) -> list[str]:
+        words = str(text).split()
+        if not words:
+            return [""]
+        lines: list[str] = []
+        current = words[0]
+        for word in words[1:]:
+            tentative = f"{current} {word}"
+            if len(tentative) <= max_chars:
+                current = tentative
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+        return lines
+
+    def is_table_separator(line: str) -> bool:
+        stripped = line.strip()
+        if not stripped or "|" not in stripped:
+            return False
+        allowed = set("|:- ")
+        return all(ch in allowed for ch in stripped)
+
+    def parse_table_row(line: str) -> list[str]:
+        parts = [clean_markdown(part.strip()) for part in line.strip().strip("|").split("|")]
+        return [part for part in parts if part]
+
+    def render_table_blocks(table_lines: list[str]) -> list[tuple[str, str]]:
+        if len(table_lines) < 2:
+            return [("body", ascii_safe(line)) for line in table_lines if ascii_safe(line)]
+
+        header = parse_table_row(table_lines[0])
+        data_rows = []
+        for raw_line in table_lines[1:]:
+            if is_table_separator(raw_line):
+                continue
+            row = parse_table_row(raw_line)
+            if row:
+                data_rows.append(row)
+
+        blocks: list[tuple[str, str]] = []
+        for row in data_rows:
+            strategy_name = row[0] if row else "Strategy"
+            blocks.append(("h3", strategy_name))
+            for idx, value in enumerate(row[1:], start=1):
+                header_label = header[idx] if idx < len(header) else f"Metric {idx}"
+                blocks.append(("body", f"{header_label}: {value}"))
+            blocks.append(("spacer", ""))
+        return blocks
+
+    raw_lines = body.splitlines() if isinstance(body, str) else []
+    if raw_lines and raw_lines[0].strip().startswith("# "):
+        first_heading = clean_markdown(raw_lines[0])
+        if first_heading == clean_markdown(title):
+            raw_lines = raw_lines[1:]
+
+    content_blocks: list[tuple[str, str]] = [("title", clean_markdown(title))]
+    content_blocks.append(("meta", "Generated by Stratify"))
+    content_blocks.append(("spacer", ""))
+
+    idx = 0
+    while idx < len(raw_lines):
+        raw_line = raw_lines[idx]
+        stripped = raw_line.strip()
+        if not stripped:
+            content_blocks.append(("spacer", ""))
+            idx += 1
+            continue
+
+        if "|" in stripped:
+            table_lines = [raw_line]
+            look_ahead = idx + 1
+            while look_ahead < len(raw_lines):
+                next_line = raw_lines[look_ahead].strip()
+                if not next_line or "|" not in next_line:
+                    break
+                table_lines.append(raw_lines[look_ahead])
+                look_ahead += 1
+
+            if len(table_lines) >= 2 and any(is_table_separator(line) for line in table_lines[1:]):
+                content_blocks.extend(render_table_blocks(table_lines))
+                idx = look_ahead
+                continue
+
+        if stripped.startswith("### "):
+            content_blocks.append(("h3", clean_markdown(stripped[4:])))
+        elif stripped.startswith("## "):
+            content_blocks.append(("h2", clean_markdown(stripped[3:])))
+        elif stripped.startswith(("- ", "* ")):
+            content_blocks.append(("bullet", clean_markdown(stripped[2:])))
+        elif stripped[:2].isdigit() and stripped[2:4] == ". ":
+            content_blocks.append(("bullet", clean_markdown(stripped[4:])))
+        else:
+            content_blocks.append(("body", clean_markdown(stripped)))
+        idx += 1
+
+    style_map = {
+        "title": {"font": "F2", "size": 22, "leading": 28, "max_chars": 44, "indent": 50},
+        "meta": {"font": "F1", "size": 10, "leading": 16, "max_chars": 70, "indent": 50},
+        "h2": {"font": "F2", "size": 15, "leading": 22, "max_chars": 58, "indent": 50},
+        "h3": {"font": "F2", "size": 12, "leading": 18, "max_chars": 64, "indent": 50},
+        "body": {"font": "F1", "size": 11, "leading": 16, "max_chars": 80, "indent": 50},
+        "bullet": {"font": "F1", "size": 11, "leading": 16, "max_chars": 72, "indent": 68},
+        "spacer": {"font": "F1", "size": 11, "leading": 10, "max_chars": 1, "indent": 50},
+        "footer": {"font": "F1", "size": 9, "leading": 12, "max_chars": 40, "indent": 50},
+    }
+
+    pages: list[list[tuple[str, str]]] = [[]]
+    current_y = 770
+    bottom_margin = 60
+
+    def ensure_space(lines_needed: int, leading: int) -> None:
+        nonlocal current_y
+        needed = lines_needed * leading
+        if current_y - needed < bottom_margin:
+            pages.append([])
+            current_y = 770
+
+    for style, text in content_blocks:
+        cfg = style_map[style]
+        wrapped_lines = wrap_text(text, cfg["max_chars"]) if style != "spacer" else [""]
+        ensure_space(len(wrapped_lines), cfg["leading"])
+        for line_idx, wrapped_line in enumerate(wrapped_lines):
+            line_text = wrapped_line
+            if style == "bullet" and line_idx == 0:
+                line_text = f"- {wrapped_line}"
+            pages[-1].append((style, line_text))
+            current_y -= cfg["leading"]
+
+    if pages and not pages[-1]:
+        pages.pop()
+
+    objects = []
+
+    def add_object(content: str) -> int:
+        objects.append(content)
+        return len(objects)
+
+    font_regular_obj = add_object("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    font_bold_obj = add_object("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
+    page_ids = []
+
+    for page_number, page_lines in enumerate(pages, start=1):
+        stream_parts = []
+        current_y = 770
+
+        for style, line in page_lines:
+            cfg = style_map[style]
+            font_ref = "F2" if cfg["font"] == "F2" else "F1"
+            escaped = pdf_escape(str(line)[:180])
+            stream_parts.append(
+                f"BT /{font_ref} {cfg['size']} Tf 1 0 0 1 {cfg['indent']} {current_y} Tm ({escaped}) Tj ET"
+            )
+            current_y -= cfg["leading"]
+
+        footer_cfg = style_map["footer"]
+        footer_text = pdf_escape(f"Page {page_number} of {len(pages)}")
+        stream_parts.append(
+            f"BT /F1 {footer_cfg['size']} Tf 1 0 0 1 500 28 Tm ({footer_text}) Tj ET"
+        )
+
+        stream = "\n".join(stream_parts)
+        content_obj = add_object(
+            f"<< /Length {len(stream.encode('latin-1', errors='replace'))} >>\nstream\n{stream}\nendstream"
+        )
+        page_obj = add_object(
+            f"<< /Type /Page /Parent 0 0 R /MediaBox [0 0 612 792] "
+            f"/Resources << /Font << /F1 {font_regular_obj} 0 R /F2 {font_bold_obj} 0 R >> >> "
+            f"/Contents {content_obj} 0 R >>"
+        )
+        page_ids.append(page_obj)
+
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    pages_obj = add_object(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>")
+
+    for page_id in page_ids:
+        objects[page_id - 1] = objects[page_id - 1].replace("/Parent 0 0 R", f"/Parent {pages_obj} 0 R")
+
+    catalog_obj = add_object(f"<< /Type /Catalog /Pages {pages_obj} 0 R >>")
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj_idx, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{obj_idx} 0 obj\n{obj}\nendobj\n".encode("latin-1", errors="replace"))
+
+    xref_start = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("latin-1"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("latin-1"))
+    pdf.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_obj} 0 R >>\nstartxref\n{xref_start}\n%%EOF".encode(
+            "latin-1"
+        )
+    )
+    return bytes(pdf)
+
+
 def build_strategy_report_payload(
     data: dict,
     market_context: dict,
@@ -364,6 +622,85 @@ def generate_strategy_report_task(report_payload: dict) -> dict:
     return report_response.json()
 
 
+@st.fragment(run_every="2s")
+def render_strategy_report_panel(
+    data: dict,
+    market_context: dict,
+    generated_strategies: list[dict],
+    backtestable_indices: list[int],
+) -> None:
+    stored_evaluations = st.session_state.get("strategy_generated_all_evaluations", {})
+    background_futures = st.session_state.get("strategy_generated_background_futures", {})
+    report_future = st.session_state.get("strategy_generated_report_future")
+
+    completed_now = False
+    for idx, future in list(background_futures.items()):
+        if future.done() and idx not in stored_evaluations:
+            try:
+                stored_evaluations[idx] = future.result()
+                completed_now = True
+            except Exception as exc:
+                stored_evaluations[idx] = {"error": str(exc)}
+                completed_now = True
+
+    if completed_now:
+        st.session_state["strategy_generated_all_evaluations"] = stored_evaluations
+
+    all_background_done = bool(backtestable_indices) and all(
+        idx in stored_evaluations for idx in backtestable_indices
+    )
+    if all_background_done and report_future is None and st.session_state.get("strategy_generated_report_result") is None:
+        report_payload = build_strategy_report_payload(
+            data=data,
+            market_context=market_context,
+            generated_strategies=generated_strategies,
+            evaluations=stored_evaluations,
+        )
+        report_future = BACKGROUND_EXECUTOR.submit(generate_strategy_report_task, report_payload)
+        st.session_state["strategy_generated_report_future"] = report_future
+
+    if report_future is not None and report_future.done() and st.session_state.get("strategy_generated_report_result") is None:
+        try:
+            st.session_state["strategy_generated_report_result"] = report_future.result()
+            st.session_state["strategy_generated_report_future"] = None
+        except Exception:
+            st.session_state["strategy_generated_report_result"] = None
+            st.session_state["strategy_generated_report_future"] = None
+
+    report_result = st.session_state.get("strategy_generated_report_result")
+    if report_result:
+        report_title = extract_markdown_title(report_result.get("markdown", ""))
+        if report_title:
+            st.markdown(f"### {report_title}")
+        pdf_bytes = create_simple_pdf_bytes(
+            title=report_title or f"{data['ticker']} Strategy Report",
+            body=report_result.get("markdown", ""),
+        )
+        st.download_button(
+            "Download PDF Report",
+            data=pdf_bytes,
+            file_name=f"strategy_report_{data['ticker']}_{data['start_date']}_{data['end_date']}.pdf",
+            mime="application/pdf",
+            use_container_width=False,
+            key="download_strategy_report_pdf",
+        )
+        st.write(report_result.get("summary", "No summary available."))
+
+        for section_name, section_content in report_result.get("sections", {}).items():
+            with st.expander(section_name):
+                st.markdown(section_content)
+        return
+
+    ready_count = sum(
+        1 for idx in backtestable_indices if idx in stored_evaluations and "error" not in stored_evaluations[idx]
+    )
+    total_count = len(backtestable_indices)
+    if total_count == 0:
+        st.info("No backtestable generated strategies are available for reporting.")
+    else:
+        st.info(f"Background evaluation progress: {ready_count}/{total_count} strategies completed. The report will appear automatically once all evaluations are ready.")
+
+
 def render_header():
     left_col, right_col = st.columns([4, 2])
 
@@ -427,11 +764,7 @@ def render_market_intelligence_tab(active_tier: str):
         return
 
     with st.form("market_intel_form"):
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            ticker = st.selectbox("Ticker", options=ASSETS, index=0)
-        with col2:
-            show_raw = st.toggle("Show Raw API Response", value=False)
+        ticker = st.selectbox("Ticker", options=ASSETS, index=0)
         submitted = st.form_submit_button("Fetch Market Intelligence", use_container_width=True)
 
     market_intel_signature = (ticker,)
@@ -451,16 +784,13 @@ def render_market_intelligence_tab(active_tier: str):
                 }
             else:
                 st.session_state["market_intel_result"] = response.json()
-                st.session_state["market_intel_show_raw"] = show_raw
         except Exception as exc:
             st.session_state["market_intel_result"] = {
                 "request_error": "Backend connection failed",
                 "response_body": str(exc),
             }
-            st.session_state["market_intel_show_raw"] = show_raw
 
     data = st.session_state["market_intel_result"]
-    show_raw = st.session_state.get("market_intel_show_raw", False)
 
     if not data:
         st.info("Choose a ticker and fetch market intelligence.")
@@ -499,10 +829,6 @@ def render_market_intelligence_tab(active_tier: str):
             st.markdown(f"**{article.get('title', 'Untitled article')}**")
             if article.get("url"):
                 st.markdown(f"[Open article]({article['url']})")
-
-    if show_raw:
-        st.subheader("Raw API Response")
-        st.json(data)
 
 
 def render_backtester_tab(active_tier: str):
@@ -826,13 +1152,7 @@ def render_strategy_generation_tab(active_tier: str):
         with row4:
             end_date = st.date_input("End Date", value=DEFAULT_GENERATION_END, key="gen_end")
 
-        row8, row9 = st.columns([1, 1])
-        with row8:
-            use_llm = st.toggle("Use Cohere if available", value=True)
-        with row9:
-            show_raw = st.toggle("Show Raw API Response", value=st.session_state["strategy_generation_show_raw"])
-
-        st.session_state["strategy_generation_show_raw"] = show_raw
+        use_llm = st.toggle("Use Cohere if available", value=True)
         submitted = st.button("Generate Strategies", use_container_width=True, key="generate_strategies_button")
 
     strategy_generation_signature = (
@@ -879,12 +1199,7 @@ def render_strategy_generation_tab(active_tier: str):
                 show_user_error("Strategy generation failed", response=response)
             else:
                 st.session_state["strategy_generation_result"] = response.json()
-                st.session_state["strategy_generated_backtest_result"] = None
-                st.session_state["strategy_generated_optimization_result"] = None
-                st.session_state["strategy_generated_report_result"] = None
-                st.session_state["strategy_generated_all_evaluations"] = {}
-                st.session_state["strategy_generated_background_futures"] = {}
-                st.session_state["strategy_generated_report_future"] = None
+                reset_strategy_generation_downstream_results()
         except requests.RequestException as exc:
             show_user_error("Strategy generation failed", exc=exc)
 
@@ -1019,6 +1334,15 @@ def render_strategy_generation_tab(active_tier: str):
             else "Research Based"
         )
 
+        selected_strategy_signature = (
+            selected_index,
+            selected_strategy.get("strategy_name"),
+        )
+        if st.session_state.get("selected_generated_strategy_signature") != selected_strategy_signature:
+            st.session_state["strategy_generated_backtest_result"] = None
+            st.session_state["strategy_generated_optimization_result"] = None
+            st.session_state["selected_generated_strategy_signature"] = selected_strategy_signature
+
         with st.container(border=True):
             header_col1, header_col2 = st.columns([5, 1])
             with header_col1:
@@ -1125,13 +1449,13 @@ def render_strategy_generation_tab(active_tier: str):
                 show_user_error("Backtest failed", exc=exc)
 
         all_evaluations = st.session_state.get("strategy_generated_all_evaluations", {})
-        selected_evaluation = all_evaluations.get(selected_index)
-        if selected_evaluation:
-            backtest_result = selected_evaluation["backtest_result"]
+        pipeline_result = st.session_state.get("strategy_generated_backtest_result")
+        if pipeline_result and pipeline_result.get("strategy", {}).get("strategy_name") == selected_strategy["strategy_name"]:
+            backtest_result = pipeline_result["result"]
             st.divider()
             st.subheader("Optimization Output")
 
-            optimization_result = selected_evaluation.get("optimization_result", {})
+            optimization_result = st.session_state.get("strategy_generated_optimization_result") or {}
             top_configs = optimization_result.get("top_configs", [])
             if optimization_result.get("fallback_used"):
                 st.info(
@@ -1148,7 +1472,7 @@ def render_strategy_generation_tab(active_tier: str):
             with opt_col3:
                 st.metric("Best Score", top_configs[0].get("score", "n/a") if top_configs else "n/a")
 
-            best_params = selected_evaluation.get("best_params", selected_strategy.get("strategy_params", {}))
+            best_params = pipeline_result.get("params", selected_strategy.get("strategy_params", {}))
             best_params_df = pd.DataFrame(
                 [{"Parameter": key, "Value": value} for key, value in best_params.items()]
             )
@@ -1204,28 +1528,7 @@ def render_strategy_generation_tab(active_tier: str):
     with report_tab:
         st.markdown("**Strategy Report**")
         st.caption("This report summarizes all strategies generated for the current market context and updates automatically once the background evaluations finish.")
-
-        report_result = st.session_state.get("strategy_generated_report_result")
-        if report_result:
-            st.write(report_result.get("summary", "No summary available."))
-
-            for section_name, section_content in report_result.get("sections", {}).items():
-                with st.expander(section_name):
-                    st.markdown(section_content)
-        else:
-            ready_count = sum(
-                1 for idx in backtestable_indices if idx in stored_evaluations and "error" not in stored_evaluations[idx]
-            )
-            total_count = len(backtestable_indices)
-            if total_count == 0:
-                st.info("No backtestable generated strategies are available for reporting.")
-            else:
-                st.info(f"Background evaluation progress: {ready_count}/{total_count} strategies completed. The report will appear automatically once all evaluations are ready.")
-
-    if st.session_state["strategy_generation_show_raw"]:
-        st.subheader("Raw API Response")
-        st.json(data)
-
+        render_strategy_report_panel(data, context, generated_strategies, backtestable_indices)
 
 render_header()
 active_tier = st.session_state["selected_tier"]
