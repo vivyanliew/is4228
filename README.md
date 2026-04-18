@@ -1,280 +1,294 @@
-# Browser-Based Strategy Research and Backtesting Tool
+# Strategy Lab — Browser-Based Backtesting & Strategy Research Platform
 
-A browser-based trading strategy research and backtesting tool for novice and intermediate retail traders and student quants. It enables users to test rule-based technical strategies on historical data, visualize trade signals, and evaluate performance using standardized metrics—helping them validate ideas before risking real capital. An advanced agentic layer further supports automated strategy generation, optimization, and robust validation across different market conditions.
+A browser-based trading strategy research and backtesting platform for finance students and early-stage retail traders. Users can test rule-based technical strategies on historical price data, visualize trade signals, and evaluate performance using standardized metrics — helping them rigorously validate ideas before risking real capital.
 
-## Quick Setup Checklist
+A tiered feature model progressively unlocks overfitting detection, AI-generated insights, market intelligence, and a full multi-agent strategy generation pipeline.
 
-1. **Clone the repository** and open the project folder
-2. **Set up the backend environment** by creating and activating a Python virtual environment
-3. **Install backend dependencies** from `requirements.txt`
-4. **Run the FastAPI server** and verify the local API is working
-5. **Open Swagger docs** to confirm the backend is ready for development
-6. **Run the Streamlit server** to load UI on local server 
+---
 
-## Key Capabilities
+## Table of Contents
 
-- **Rule-based backtesting**: Backtest across multiple strategies on historical data (Mean Reversion, Trend Following, Volatility Breakout)
-- **Agent-driven workflow**: Strategy generation, optimization, and risk analysis
-- **Metrics & Interactive visualizations:**: Inspect returns, trade logs, and risk metrics; price charts with trade signals, equity curves
-- **API-first backend**: Built with FastAPI for frontend integration
-- **Overfitting detection**: Robustness checks using IS vs OOS performance gaps
-- **Extensible design**: Structured to support more assets, indicators, and strategy parameters later
+1. [Project Overview](#project-overview)
+2. [Problem Statement](#problem-statement)
+3. [Tech Stack](#tech-stack)
+4. [Repository Structure](#repository-structure)
+5. [Tier Features](#tier-features)
+6. [Strategies](#strategies)
+7. [Environment Variables](#environment-variables)
+8. [Installation & Setup](#installation--setup)
+9. [How to Run the Project](#how-to-run-the-project)
+10. [API Reference](#api-reference)
+11. [Common Issues](#common-issues)
 
-## Repository Layout
+---
 
-- `backend/` — Python backend for API and strategy execution
-- `backend/app/main.py` — FastAPI application entry point
-- `backend/app/models.py` — request and response models
-- `backend/requirements.txt` — backend Python dependencies
-- `frontend/app.py` — main file for UI 
-- `frontend/requirements.txt` — frontend Python dependencies
+## Project Overview
 
-## Current Project Scope
+Strategy Lab is a full-stack web application with a **FastAPI backend** and **Streamlit frontend**. It supports two distinct modes of use:
 
-For the current proof of concept, the team is focusing on:
+**Rule-based backtesting** — Users select a predefined strategy, configure parameters, choose from 21 assets, and set a date range. The system simulates trades on historical price data, computes performance metrics, and renders interactive visualizations including equity curves, trade signal charts, and drawdown plots. Pro-tier users additionally receive S&P 500 benchmark comparison, overfitting risk analysis (in-sample/out-of-sample), and AI-generated plain-English insights.
 
-- Python backend
-- FastAPI server
-- Streamlit-based web interface for user interaction and visualization
-- API output for strategy metrics and signals
-- Core performance metrics and basic risk indicators (Sharpe, drawdown, returns)
-- Support for a set of predefined strategies (Mean Reversion, Trend Following, Volatility Breakout)
-- Backtesting on historical price data for a selected set of assets (e.g., equities or crypto)
+**Automated multi-agent pipeline (Advanced tier)** — A sequence of specialized agents orchestrates the full research workflow: market context analysis, LLM-driven strategy generation, backtesting of generated strategies, parameter optimization, risk validation, and synthesis into a structured research report.
+
+---
+
+## Problem Statement
+
+Beginner traders are widely exposed to technical indicators through online content but lack structured tools to validate whether a strategy is robust or simply curve-fitted to historical data. Existing solutions are either too simplistic (charting tools with no backtesting rigor) or too inaccessible (institutional-grade platforms requiring programming expertise). Strategy Lab bridges this gap by embedding methodological best practices — out-of-sample validation, overfitting scoring, benchmark comparison — into an accessible, no-code interface.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Streamlit |
+| Backend | FastAPI (Python) |
+| Data | yfinance (historical price data) |
+| Market Intelligence | Finnhub API (news), Cohere API (AI summaries) |
+| AI Insights & Strategy Generation | Cohere API (`command-a-03-2025`) |
+| Data processing | pandas, numpy |
+| Dependency management | pip + `requirements.txt` |
+
+---
+
+## Repository Structure
+
+```
+is4228/
+├── backend/
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py                  # FastAPI application entry point
+│       ├── routers.py               # Backtesting, risk analysis, AI insights endpoints
+│       ├── agent_router.py          # Multi-agent pipeline endpoints
+│       ├── models.py                # Pydantic request/response models
+│       ├── backtest.py              # Core single-asset backtesting engine
+│       ├── portfolio_backtest.py    # Multi-asset portfolio backtesting + SPY benchmark
+│       ├── market_intel.py          # Market Intelligence (news, sentiment, AI summary)
+│       ├── utils.py                 # Shared utility functions
+│       ├── utils_report.py          # Report generation utilities
+│       ├── agents/
+│       │   ├── market_context_agent.py      # Market regime analysis
+│       │   ├── strategy_generation_agent.py # LLM-driven strategy proposal
+│       │   ├── backtest_agent.py            # Agent-driven backtesting
+│       │   ├── optimization_agent.py        # Parameter optimization
+│       │   ├── risk_agent.py                # Overfitting scoring and risk flags
+│       │   ├── report_agent.py              # Research report synthesis
+│       │   └── strategy_spec.py             # Strategy specification schema
+│       ├── strategies/
+│       │   ├── strategy_mean_reversion.py   # RSI + Bollinger Bands
+│       │   ├── strategy_ema.py              # EMA Crossover + ADX
+│       │   └── strategy_macd.py             # MACD + Bollinger Band Squeeze
+│       └── research/
+│           ├── paper_index.json             # Indexed academic papers
+│           └── papers/                      # Source PDFs
+├── frontend/
+│   ├── app.py          # Main Streamlit application
+│   ├── sidebar.py      # Sidebar controls (tier, asset, strategy, date range)
+│   ├── api.py          # API endpoint constants and payload builders
+│   ├── charts.py       # Chart rendering, risk analysis display, AI insights display
+│   ├── metrics.py      # Metrics table rendering
+│   └── requirements.txt
+└── README.md
+```
+
+---
+
+## Tier Features
+
+The application uses a three-tier model selectable from the UI (no authentication required — designed for demo/academic use):
+
+| Tier | Features |
+|---|---|
+| **Free** | Single and multi-asset portfolio backtesting across 21 assets. All three predefined strategies. S&P 500 benchmark comparison (Alpha, Beta, Information Ratio, Sortino Ratio, Treynor Ratio). Core metrics: cumulative return, annualized return, Sharpe ratio, max drawdown, win rate, trade log, equity curve. |
+| **Pro** | All Free features, plus: overfitting risk analysis (in-sample/out-of-sample 70/30 split with scored risk flag), AI-generated insights (performance analysis, risk commentary, actionable parameter guidance), and Market Intelligence (news feed, sentiment tagging, AI company snapshot). |
+| **Advanced** | All Pro features, plus: full automated Strategy Generation pipeline — market context analysis, LLM-driven strategy proposals, parameter optimization, backtesting of generated strategies, and a synthesized research report. |
+
+**Supported assets (21):** AAPL, NVDA, MSFT, GOOGL, TSLA, AMD, NFLX, META, AMZN, WMT, COST, SBUX, JPM, GS, BRK-B, V, UNH, LLY, XOM, CVX, BTC-USD
+
+---
 
 ## Strategies
 
-### Strategy A: Mean Reversion (RSI + Bollinger Bands)
+### Mean Reversion — RSI + Bollinger Bands
 
-**Logic**
-- Buy when price touches the lower Bollinger Band and RSI is below 30
-- Sell when price touches the upper Bollinger Band or RSI rises above 70
+- **Entry:** Price at or below the lower Bollinger Band and RSI below 30 (oversold)
+- **Exit:** Price at or above the upper Bollinger Band or RSI above 70 (overbought)
+- **Rationale:** Captures price reversion in range-bound markets; the most intuitive starting strategy for beginner users
 
-**Why this strategy**
-- Suitable for the beginner tier
-- One of the most common strategies newer traders encounter first
-- Easy to explain visually and conceptually
+### Trend Follower — EMA Crossover + ADX
 
-### Strategy B: Trend Follower (EMA Cross + ADX)
+- **Entry:** 20-period EMA crosses above the 50-period EMA, with ADX above 25 confirming trend strength
+- **Exit:** EMA crossover reverses
+- **Rationale:** Teaches users that crossover signals require trend confirmation filters to be effective; performs best in trending, directional markets
 
-**Logic**
-- Buy when the 20-period EMA crosses above the 50-period EMA
-- Only enter if ADX is above 25, indicating trend strength
+### Volatility Breakout — MACD + Bollinger Band Squeeze
 
-**Why this strategy**
-- Teaches that moving average crossovers work better in trending markets
-- Shows the value of adding filters instead of using signals blindly
+- **Entry:** Bollinger Bands in a squeeze state (low volatility compression), confirmed by MACD histogram turning positive
+- **Exit:** MACD histogram turns negative
+- **Rationale:** Captures regime transitions from low to high volatility; represents a distinct strategy family from the other two
 
-### Strategy C: Volatility Breakout (MACD + Bollinger Band Width)
+---
 
-**Logic**
-- Buy when Bollinger Bands are in a squeeze state
-- Confirm entry when the MACD histogram turns positive
+## Environment Variables
 
-**Why this strategy**
-- Captures regime shifts from low volatility to expansion
-- Introduces a different strategy family from mean reversion and trend following
-
-## Prerequisites
-
-- Python 3.10+ recommended
-- Git
-- Cursor, VS Code, or another code editor
-
-## Backend Setup
-
-### Step 1: Clone the Repository
+The backend requires a `.env` file at `backend/.env`. Create this file before running the server.
 
 ```bash
-git clone <https://github.com/vivyanliew/is4228.git>
+# backend/.env
+
+COHERE_API_KEY=your_cohere_api_key_here
+FINNHUB_API_KEY=your_finnhub_api_key_here
+```
+
+| Variable | Required | Used by |
+|---|---|---|
+| `COHERE_API_KEY` | Yes (for Pro/Advanced features) | AI Insights, Market Intelligence summary, Strategy Generation |
+| `FINNHUB_API_KEY` | Yes (for Market Intelligence) | News feed in Market Intelligence tab |
+
+> Without these keys, the backtester and Free tier features will still work. Pro/Advanced AI features will return a graceful error message.
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+
+- Python 3.10 or higher
+- Git
+
+### Step 1 — Clone the repository
+
+```bash
+git clone https://github.com/vivyanliew/is4228.git
 cd is4228
 ```
 
-### Step 2: Go Into the Backend Folder
+### Step 2 — Set up the backend
 
 ```bash
 cd backend
 ```
 
-### Step 3: Create a Virtual Environment
+Create and activate a virtual environment:
 
-#### Mac / Linux
-
+**Mac / Linux**
 ```bash
 python3 -m venv venv
-```
-
-#### Windows
-
-```bash
-python -m venv venv
-```
-
-If `python` does not work on Windows, try:
-
-```bash
-py -m venv venv
-```
-
-### Step 4: Activate the Virtual Environment
-
-#### Mac / Linux
-
-```bash
 source venv/bin/activate
 ```
 
-#### Windows Command Prompt
-
+**Windows (Command Prompt)**
 ```bash
+python -m venv venv
 venv\Scripts\activate
 ```
 
-#### Windows PowerShell
-
+**Windows (PowerShell)**
 ```powershell
+python -m venv venv
 venv\Scripts\Activate.ps1
 ```
 
-After activation, your terminal should show something like `(venv)` at the front.
+> If PowerShell blocks activation, run `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` as administrator first.
 
-### Step 5: Install Dependencies (modify requirements as needed for frontend)
+Install backend dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-If `pip` does not work, try:
+### Step 3 — Configure environment variables
+
+Create `backend/.env` and add your API keys as shown in the [Environment Variables](#environment-variables) section above.
+
+### Step 4 — Set up the frontend
+
+Open a second terminal from the project root:
 
 ```bash
-python -m pip install -r requirements.txt
+cd frontend
+pip install -r requirements.txt
+pip install markdown  # Required for AI Insights rendering
 ```
 
-or on some Windows machines:
+---
+
+## How to Run the Project
+
+Both servers must be running simultaneously. Use two separate terminals.
+
+### Terminal 1 — Start the backend
 
 ```bash
-py -m pip install -r requirements.txt
-```
-
-### Step 6: Run the Backend Server
-
-```bash
+cd backend
+# Activate your virtual environment first (see above)
 uvicorn app.main:app --reload
 ```
 
-If that does not work, try:
+Verify the backend is running by opening:
+- `http://127.0.0.1:8000/` — health check message
+- `http://127.0.0.1:8000/docs` — interactive Swagger API documentation
+
+### Terminal 2 — Start the frontend
 
 ```bash
-python -m uvicorn app.main:app --reload
-```
-
-### Step 7: Verify That the Server Is Working
-
-Open these in your browser:
-
-- `http://127.0.0.1:8000/`
-- `http://127.0.0.1:8000/health`
-- `http://127.0.0.1:8000/docs`
-
-Expected results:
-
-- `/` returns a message saying the backend is running
-- `/health` returns a status response
-- `/docs` opens the FastAPI Swagger UI
-
-### Step 8: Run Frontend 
-Make sure that you are in the 'frontend' folder
-```bash
+cd frontend
 streamlit run app.py
 ```
 
-### Exit the Virtual Environment
+The Streamlit app will open automatically at `http://localhost:8501`.
 
-When you are done working, you can deactivate the virtual environment by running:
+### Using the application
 
-```bash
-deactivate
-```
+1. Select a **tier** from the top-right toggle (Free / Pro / Advanced)
+2. In the **Backtester** tab, select assets, date range, strategy, and parameters from the sidebar
+3. Click **Run Backtest** to simulate and view results
+4. On Pro tier: click **Run Risk Analysis** and **Generate AI Insights** for extended analysis
+5. On Pro tier: use the **Market Intelligence** tab to research individual tickers
+6. On Advanced tier: use the **Strategy Generation** tab for the full automated pipeline
+
+---
+
+## API Reference
+
+The FastAPI backend exposes the following key endpoints (full documentation at `/docs`):
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/backtest/run-portfolio` | Run multi-asset portfolio backtest |
+| `POST` | `/backtest/risk-analysis` | Run IS/OOS overfitting analysis |
+| `POST` | `/backtest/ai-insights` | Generate AI insights via Cohere |
+| `POST` | `/market-intel` | Fetch news, sentiment, AI summary for a ticker |
+| `POST` | `/strategy-generation/run` | Run full multi-agent strategy generation pipeline |
+| `POST` | `/agent/market-context` | Analyze market regime for a ticker |
+| `POST` | `/agent/backtest` | Agent-driven backtesting |
+| `POST` | `/agent/optimize` | Parameter optimization |
+| `POST` | `/agent/report` | Generate strategy research report |
+
+---
 
 ## Common Issues
 
 ### `python` not found
-
-Try:
-
-#### Mac / Linux
-
-```bash
-python3 -m venv venv
-```
-
-#### Windows
-
-```bash
-py -m venv venv
-```
+Use `python3` (Mac/Linux) or `py` (Windows) instead of `python`.
 
 ### `pip` not found
+Use `python -m pip install -r requirements.txt` or `py -m pip install -r requirements.txt`.
 
-Try:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-or:
-
-```bash
-py -m pip install -r requirements.txt
-```
-
-### PowerShell blocks activation on Windows
-
-If you get an execution policy error, use Command Prompt instead:
-
-```bash
-venv\Scripts\activate
-```
-
-Or run this in PowerShell as administrator:
-
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-Then try again:
-
-```powershell
-venv\Scripts\Activate.ps1
-```
+### PowerShell blocks virtual environment activation
+Run as administrator: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`, then retry.
 
 ### `uvicorn` not recognized
-
-Try:
-
-```bash
-python -m uvicorn app.main:app --reload
-```
+Use `python -m uvicorn app.main:app --reload`.
 
 ### Port 8000 already in use
-
-Run on a different port:
-
 ```bash
 uvicorn app.main:app --reload --port 8001
 ```
+Then update `BASE_API_URL` in `frontend/api.py` to `http://127.0.0.1:8001`.
 
-Then open:
-
-- `http://127.0.0.1:8001/docs`
-
-## Notes for Teammates
-
-After setup, please confirm that:
-
-- the virtual environment works
-- dependencies installed successfully
-- the backend server starts
-- `/docs` loads in the browser
-
-
+### AI Insights / Market Intelligence not working
+Confirm `backend/.env` exists and contains valid `COHERE_API_KEY` and `FINNHUB_API_KEY` values.
 
